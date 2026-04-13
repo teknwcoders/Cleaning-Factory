@@ -1,0 +1,81 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  --color-coral-50: #fff5f3;
+  --color-coral-100: #ffe4df;
+  --color-coral-200: #ffc9c0;
+  --color-coral-300: #ffa397;
+  --color-coral-400: #ff7a6b;
+  --color-coral-500: #ff5c4d;
+  --color-coral-600: #ed3d32;
+  --color-coral-700: #c82e29;
+  --color-coral-800: #a52926;
+  --color-coral-900: #882726;
+}
+
+:root {
+  --app-bg: #f3f4f6;
+  --app-surface: #ffffff;
+  --app-text: #111827;
+  --app-muted: #6b7280;
+  --app-border: #e5e7eb;
+  --app-sidebar: #ffffff;
+}
+
+.dark {
+  --app-bg: #0f1117;
+  --app-surface: #181b24;
+  --app-text: #f3f4f6;
+  --app-muted: #9ca3af;
+  --app-border: #2d3140;
+  --app-sidebar: #14171f;
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--app-bg);
+  color: var(--app-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+/* Print-friendly report (Save as PDF from print dialog) */
+@media screen {
+  /* Keep export layout in DOM for print, but off-screen on normal view */
+  #print-root.print-root-offscreen {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    width: 8.5in;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-root,
+  #print-root * {
+    visibility: visible;
+  }
+  #print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 24px;
+    background: white;
+    color: black;
+  }
+}
