@@ -297,8 +297,8 @@ export function CustomersPage() {
               </p>
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr),180px,auto]">
-              <label className="relative block">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr),180px,auto]">
+              <label className="relative block sm:col-span-2 lg:col-span-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--app-muted)]" />
                 <input
                   type="search"
@@ -420,7 +420,80 @@ export function CustomersPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile Card View */}
+          <div className="block md:hidden divide-y divide-[var(--app-border)]">
+            <div className="flex items-center gap-3 bg-[var(--app-bg)] px-4 py-3">
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={(e) => toggleSelectVisible(e.target.checked)}
+                aria-label="Select all visible customers"
+              />
+              <span className="text-xs font-medium uppercase text-[var(--app-muted)]">
+                Select all visible
+              </span>
+            </div>
+            {filteredCustomers.length === 0 && (
+              <div className="px-4 py-10 text-center text-sm text-[var(--app-muted)]">
+                No customers match your search or location filter.
+              </div>
+            )}
+            {filteredCustomers.map((c) => {
+              const orders = customerOrderCount(c.id)
+              return (
+                <div key={c.id} className="flex flex-col gap-3 p-4 hover:bg-[var(--app-bg)]/70">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedCustomerIds.includes(c.id)}
+                        onChange={() => toggleSelectedCustomer(c.id)}
+                        aria-label={`Select ${c.name}`}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <div className="font-medium text-[var(--app-text)]">{c.name}</div>
+                        <div className="text-xs text-[var(--app-muted)]">
+                          {orders} order{orders === 1 ? '' : 's'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(c)}
+                        title={readOnly ? 'View details (read-only)' : undefined}
+                        className="inline-flex rounded-lg p-2 text-[var(--app-muted)] hover:bg-gray-100 dark:hover:bg-white/10"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(c)}
+                        {...readOnlyButtonProps}
+                        className="inline-flex rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-950/30"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="ml-7 grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <div className="text-xs text-[var(--app-muted)]">Phone</div>
+                      <div className="mt-0.5 truncate">{c.phone}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-[var(--app-muted)]">Location</div>
+                      <div className="mt-0.5 truncate">{c.location || '—'}</div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[680px] text-left text-sm">
               <thead>
                 <tr className="border-b border-[var(--app-border)] text-xs uppercase text-[var(--app-muted)]">
