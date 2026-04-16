@@ -21,6 +21,7 @@
   --app-muted: #6b7280;
   --app-border: #e5e7eb;
   --app-sidebar: #ffffff;
+  --app-hover: #eceff3;
 }
 
 .dark {
@@ -30,6 +31,7 @@
   --app-muted: #9ca3af;
   --app-border: #2d3140;
   --app-sidebar: #14171f;
+  --app-hover: #212633;
 }
 
 html {
@@ -42,6 +44,13 @@ body {
   background: var(--app-bg);
   color: var(--app-text);
   -webkit-font-smoothing: antialiased;
+}
+
+input,
+select,
+textarea,
+button {
+  color: inherit;
 }
 
 #root {

@@ -9,6 +9,7 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { RequireModule } from './components/RequireModule'
 import { CustomersPage } from './pages/CustomersPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { EmailConfirmedPage } from './pages/EmailConfirmedPage'
 import { LoginPage } from './pages/LoginPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { ProductionPage } from './pages/ProductionPage'
@@ -47,6 +48,7 @@ export default function App() {
             <BrowserRouter>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/confirmed" element={<EmailConfirmedPage />} />
                 <Route
                   element={
                     <ProtectedRoute>

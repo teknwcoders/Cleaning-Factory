@@ -103,8 +103,8 @@ export function ProductSelectWithSearch({
     ? 'pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--app-muted)]'
     : 'pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--app-muted)]'
   const btnCls = isCompact
-    ? 'inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] px-2 py-1 text-[10px] font-semibold text-[var(--app-text)] transition hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-white/10'
-    : 'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm font-semibold text-[var(--app-text)] shadow-sm transition hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-white/10'
+    ? 'inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] px-2 py-1 text-[10px] font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-hover)] disabled:opacity-50'
+    : 'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm font-semibold text-[var(--app-text)] shadow-sm transition hover:bg-[var(--app-hover)] disabled:opacity-50'
 
   const defaultSelectCls = isCompact
     ? 'w-full rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1.5 text-xs text-[var(--app-text)] outline-none'

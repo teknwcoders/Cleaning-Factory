@@ -1,14 +1,16 @@
-import { Pencil, Plus, ShoppingCart, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Download, Pencil, Plus, Printer, ShoppingCart, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Modal } from '../components/Modal'
 import { ProductSelectWithSearch } from '../components/ProductSelectWithSearch'
 import { READ_ONLY_CONTROL_TITLE, useData } from '../context/DataContext'
 import { useUiFeedback } from '../context/UiFeedbackContext'
 import type { Sale, SaleLine } from '../types'
 import { saleLineTotal, saleOrderTotal } from '../types'
+import { downloadCsv } from '../utils/exportCsv'
 import { formatDateShort, formatMoney, todayISO } from '../utils/format'
 
 type DraftLine = SaleLine & { key: string }
+type SalesPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly'
 
 function newKey() {
   return crypto.randomUUID()
@@ -41,6 +43,16 @@ function draftsToLines(drafts: DraftLine[]): SaleLine[] {
   }))
 }
 
+function inPeriod(iso: string, period: SalesPeriod): boolean {
+  const t = new Date(iso).getTime()
+  const now = Date.now()
+  const day = 86400000
+  if (period === 'daily') return now - t <= day
+  if (period === 'weekly') return now - t <= 7 * day
+  if (period === 'monthly') return now - t <= 31 * day
+  return now - t <= 365 * day
+}
+
 export function SalesPage() {
   const {
     products,
@@ -60,8 +72,12 @@ export function SalesPage() {
     defaultProductId ? [lineFromProduct(defaultProductId, products)] : [],
   )
   const [customerId, setCustomerId] = useState(customers[0]?.id ?? '')
+  const [customerSearch, setCustomerSearch] = useState('')
   const [date, setDate] = useState(todayISO())
   const [error, setError] = useState('')
+  const [historyPeriod, setHistoryPeriod] = useState<SalesPeriod>('monthly')
+  const [historyCustomerId, setHistoryCustomerId] = useState('all')
+  const [historySelectedDate, setHistorySelectedDate] = useState('')
   /** Product chosen in quick-add dropdown (record sale) */
   const [quickAddProductId, setQuickAddProductId] = useState('')
   const [editQuickAddProductId, setEditQuickAddProductId] = useState('')
@@ -98,6 +114,32 @@ export function SalesPage() {
   const orderTotalPreview = useMemo(
     () => lines.reduce((a, l) => a + saleLineTotal(l), 0),
     [lines],
+  )
+  const customerSelectRef = useRef<HTMLSelectElement>(null)
+
+  const filteredCustomers = useMemo(() => {
+    const q = customerSearch.trim().toLowerCase()
+    if (!q) return customers
+    const next = customers.filter((c) => c.name.toLowerCase().includes(q))
+    const current = customers.find((c) => c.id === customerId)
+    if (current && !next.some((c) => c.id === current.id)) {
+      return [current, ...next]
+    }
+    return next.length ? next : customers
+  }, [customerSearch, customers, customerId])
+
+  const historySales = useMemo(
+    () =>
+      sales.filter((s) => {
+        const byPeriod = inPeriod(s.date, historyPeriod)
+        const byCustomer =
+          historyCustomerId === 'all' || s.customerId === historyCustomerId
+        const bySelectedDate = historySelectedDate
+          ? s.date.slice(0, 10) === historySelectedDate
+          : true
+        return byPeriod && byCustomer && bySelectedDate
+      }),
+    [sales, historyPeriod, historyCustomerId, historySelectedDate],
   )
 
   const quickPickId =
@@ -222,6 +264,46 @@ export function SalesPage() {
     setEditLines((prev) => [...prev, lineFromProduct(pid, products)])
   }
 
+  function exportSalesCsv() {
+    if (!historySales.length) return
+    const headers = [
+      'SaleId',
+      'Date',
+      'Customer',
+      'Product',
+      'Qty',
+      'UnitPrice',
+      'LineTotal',
+      'OrderTotal',
+    ]
+    const rows: string[][] = []
+    for (const s of historySales) {
+      const customerName =
+        customers.find((c) => c.id === s.customerId)?.name ?? 'Unknown'
+      const orderTotal = saleOrderTotal(s)
+      for (const line of s.lines) {
+        const productName =
+          products.find((p) => p.id === line.productId)?.name ?? 'Unknown'
+        rows.push([
+          s.id,
+          s.date,
+          customerName,
+          productName,
+          String(line.quantity),
+          String(line.unitPrice),
+          String(saleLineTotal(line)),
+          String(orderTotal),
+        ])
+      }
+    }
+    downloadCsv(`sales-${historyPeriod}.csv`, headers, rows)
+  }
+
+  function exportSalesPdf() {
+    if (!historySales.length) return
+    window.print()
+  }
+
   if (!products.length || !customers.length) {
     return (
       <p className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-6 text-sm text-[var(--app-muted)]">
@@ -290,20 +372,39 @@ export function SalesPage() {
               <label className="mb-1 block text-xs font-medium text-[var(--app-muted)]">
                 Customer
               </label>
-              <select
-                required
-                title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
-                disabled={readOnly}
-                className="w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-70"
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-              >
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="search"
+                      value={customerSearch}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                      placeholder="Search customer name..."
+                      className="min-w-0 flex-1 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => customerSelectRef.current?.focus()}
+                      className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-sm font-semibold text-[var(--app-text)] shadow-sm transition hover:bg-gray-100 dark:hover:bg-white/10"
+                    >
+                      Search
+                    </button>
+                  </div>
+                  <select
+                    ref={customerSelectRef}
+                    required
+                    title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
+                    disabled={readOnly}
+                    className="w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-70"
+                    value={customerId}
+                    onChange={(e) => setCustomerId(e.target.value)}
+                  >
+                    {filteredCustomers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-[var(--app-muted)]">
@@ -436,9 +537,65 @@ export function SalesPage() {
 
         <div className="overflow-x-auto rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] shadow-sm lg:col-span-2">
           <div className="border-b border-[var(--app-border)] px-4 py-3">
-            <h2 className="text-base font-semibold text-[var(--app-text)]">
-              Sales history
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-base font-semibold text-[var(--app-text)]">
+                Sales history
+              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={historyPeriod}
+                  onChange={(e) =>
+                    setHistoryPeriod(e.target.value as SalesPeriod)
+                  }
+                  className="rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+                <select
+                  value={historyCustomerId}
+                  onChange={(e) => setHistoryCustomerId(e.target.value)}
+                  className="rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none"
+                >
+                  <option value="all">All customers</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="date"
+                  value={historySelectedDate}
+                  onChange={(e) => setHistorySelectedDate(e.target.value)}
+                  className="rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none"
+                  aria-label="Select date (optional)"
+                />
+                <button
+                  type="button"
+                  onClick={exportSalesCsv}
+                  disabled={!historySales.length}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm font-semibold text-[var(--app-text)] hover:bg-[var(--app-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Download className="h-4 w-4" />
+                  CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={exportSalesPdf}
+                  disabled={!historySales.length}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-coral-500 px-3 py-2 text-sm font-semibold text-white hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500"
+                >
+                  <Printer className="h-4 w-4" />
+                  PDF
+                </button>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-[var(--app-muted)]">
+              Export includes full line details (qty, unit price, line total, and order total) for the selected period, customer, and optional date.
+            </p>
           </div>
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
@@ -451,17 +608,17 @@ export function SalesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--app-border)]">
-              {sales.length === 0 && (
+              {historySales.length === 0 && (
                 <tr>
                   <td
                     colSpan={5}
                     className="px-4 py-10 text-center text-[var(--app-muted)]"
                   >
-                    No sales recorded.
+                    No sales match the selected filters.
                   </td>
                 </tr>
               )}
-              {sales.map((s) => {
+              {historySales.map((s) => {
                 const c = customers.find((x) => x.id === s.customerId)
                 const productText = s.lines
                   .map((line) => {
@@ -528,6 +685,87 @@ export function SalesPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div
+        id="print-root"
+        className="print-root-offscreen bg-white p-6 text-black"
+        aria-hidden="true"
+      >
+        <h1 className="text-2xl font-bold">Cleaning Factory — Sales Export</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Period: {historyPeriod} · Customer:{' '}
+          {historyCustomerId === 'all'
+            ? 'All customers'
+            : customers.find((c) => c.id === historyCustomerId)?.name ?? 'Unknown'}{' '}
+          · Date: {historySelectedDate || 'Any'}{' '}
+          · Generated {new Date().toLocaleString()}
+        </p>
+        <table
+          className="mt-6 w-full border-collapse text-sm"
+          style={{ border: '1px solid #ccc' }}
+        >
+          <thead>
+            <tr style={{ background: '#f3f4f6' }}>
+              {[
+                'Date',
+                'Customer',
+                'Product',
+                'Qty',
+                'Unit price',
+                'Line total',
+                'Order total',
+              ].map((h) => (
+                <th
+                  key={h}
+                  style={{
+                    border: '1px solid #ccc',
+                    padding: '10px 12px',
+                    textAlign: 'left',
+                  }}
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {historySales.flatMap((sale) => {
+              const customerName =
+                customers.find((c) => c.id === sale.customerId)?.name ?? 'Unknown'
+              const orderTotal = saleOrderTotal(sale)
+              return sale.lines.map((line, idx) => {
+                const productName =
+                  products.find((p) => p.id === line.productId)?.name ?? 'Unknown'
+                return (
+                  <tr key={`${sale.id}-${idx}`}>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {formatDateShort(sale.date)}
+                    </td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {customerName}
+                    </td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {productName}
+                    </td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {line.quantity}
+                    </td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {formatMoney(line.unitPrice)}
+                    </td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {formatMoney(saleLineTotal(line))}
+                    </td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {formatMoney(orderTotal)}
+                    </td>
+                  </tr>
+                )
+              })
+            })}
+          </tbody>
+        </table>
       </div>
 
       <Modal

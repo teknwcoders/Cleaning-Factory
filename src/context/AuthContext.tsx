@@ -46,6 +46,10 @@ export type SignUpResult =
   | { ok: true; needsEmailConfirmation: boolean }
   | { ok: false; error: string }
 
+export type ResendConfirmationResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
 type AuthContextValue = {
   /** True while first `getSession()` runs (Supabase auth only). */
   authInitializing: boolean
@@ -72,6 +76,8 @@ type AuthContextValue = {
     password: string,
     options?: { displayName?: string },
   ) => Promise<SignUpResult>
+  /** Resend signup confirmation email (Supabase only). */
+  resendSignupConfirmation: (email: string) => Promise<ResendConfirmationResult>
   logout: () => Promise<void>
   /**
    * Updates viewer module access (managers only). Returns whether the toggle was applied.
@@ -169,6 +175,28 @@ function mapSupabaseUser(user: User | null): AuthSession | null {
 function emailFromUser(user: User | null | undefined): string | null {
   const e = user?.email?.trim()
   return e || null
+}
+
+function mapSupabaseAuthErrorMessage(message: string): string {
+  const m = message.trim()
+  const lower = m.toLowerCase()
+  if (
+    lower.includes('email not confirmed') ||
+    lower.includes('not confirmed') ||
+    lower.includes('email_not_confirmed')
+  ) {
+    return (
+      'This email is not confirmed yet. Open the confirmation link from your inbox (check spam), ' +
+      'or use “Resend confirmation email” below. In Supabase you can also confirm the user manually under Authentication → Users.'
+    )
+  }
+  if (lower.includes('email rate limit exceeded') || lower.includes('rate limit')) {
+    return (
+      'Email rate limit exceeded. Wait a bit and try again. ' +
+      'If you control the Supabase project, set up SMTP or disable email confirmations in Auth settings.'
+    )
+  }
+  return m
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -341,7 +369,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
       })
-      if (error) return { ok: false, error: error.message }
+      if (error) return { ok: false, error: mapSupabaseAuthErrorMessage(error.message) }
       const { data } = await sb.auth.getSession()
       const u = data.session?.user ?? null
       if (u) clearStoredAccountMode()
@@ -373,13 +401,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: em,
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/confirmed`,
           data: {
             display_name: display,
             account_type: 'viewer' as const,
           },
         },
       })
-      if (error) return { ok: false, error: error.message }
+      if (error) return { ok: false, error: mapSupabaseAuthErrorMessage(error.message) }
       const needsEmailConfirmation = !data.session
       if (data.session?.user) {
         const u = data.session.user
@@ -388,6 +417,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserEmail(emailFromUser(u))
       }
       return { ok: true, needsEmailConfirmation }
+    },
+    [],
+  )
+
+  const resendSignupConfirmation = useCallback(
+    async (email: string): Promise<ResendConfirmationResult> => {
+      const sb = getSupabase()
+      if (!sb) {
+        return {
+          ok: false,
+          error: 'Supabase is not configured.',
+        }
+      }
+      const em = email.trim()
+      const { error } = await sb.auth.resend({
+        type: 'signup',
+        email: em,
+        options: {
+          emailRedirectTo: `${window.location.origin}/confirmed`,
+        },
+      })
+      if (error) return { ok: false, error: mapSupabaseAuthErrorMessage(error.message) }
+      return { ok: true }
     },
     [],
   )
@@ -501,6 +553,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       defaultLandingPath,
       login,
       signUp,
+      resendSignupConfirmation,
       logout,
       setAdminModuleAccess,
       resetAdminAccess,
@@ -516,6 +569,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       defaultLandingPath,
       login,
       signUp,
+      resendSignupConfirmation,
       logout,
       setAdminModuleAccess,
       resetAdminAccess,

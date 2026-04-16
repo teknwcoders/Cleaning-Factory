@@ -17,7 +17,7 @@ import { saleLineTotal, saleOrderTotal, stockStatus } from '../types'
 import { downloadCsv } from '../utils/exportCsv'
 import { formatDateShort, formatMoney } from '../utils/format'
 
-type Period = 'daily' | 'weekly' | 'monthly'
+type Period = 'daily' | 'weekly' | 'monthly' | 'yearly'
 
 function inPeriod(iso: string, period: Period): boolean {
   const t = new Date(iso).getTime()
@@ -25,7 +25,8 @@ function inPeriod(iso: string, period: Period): boolean {
   const day = 86400000
   if (period === 'daily') return now - t <= day
   if (period === 'weekly') return now - t <= 7 * day
-  return now - t <= 31 * day
+  if (period === 'monthly') return now - t <= 31 * day
+  return now - t <= 365 * day
 }
 
 export function ReportsPage() {
@@ -52,6 +53,26 @@ export function ReportsPage() {
   )
 
   const profit = revenue - purchaseSpend
+
+  const { totalItemsSold, uniqueSoldProducts, uniqueCustomersServed } = useMemo(() => {
+    let itemCount = 0
+    const productIds = new Set<string>()
+    const customerIds = new Set<string>()
+
+    for (const sale of filteredSales) {
+      if (sale.customerId) customerIds.add(sale.customerId)
+      for (const line of sale.lines) {
+        itemCount += line.quantity
+        if (line.productId) productIds.add(line.productId)
+      }
+    }
+
+    return {
+      totalItemsSold: itemCount,
+      uniqueSoldProducts: productIds.size,
+      uniqueCustomersServed: customerIds.size,
+    }
+  }, [filteredSales])
 
   const salesByDay = useMemo(() => {
     const map = new Map<string, number>()
@@ -117,6 +138,7 @@ export function ReportsPage() {
               ['daily', 'Daily'],
               ['weekly', 'Weekly'],
               ['monthly', 'Monthly'],
+              ['yearly', 'Yearly'],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -137,7 +159,7 @@ export function ReportsPage() {
           <button
             type="button"
             onClick={exportSalesCsv}
-            className="inline-flex items-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-sm font-medium shadow-sm hover:bg-gray-50 dark:hover:bg-white/5"
+            className="inline-flex items-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-sm font-medium shadow-sm hover:bg-[var(--app-hover)]"
           >
             <Download className="h-4 w-4" />
             Sales CSV
@@ -145,7 +167,7 @@ export function ReportsPage() {
           <button
             type="button"
             onClick={exportStockCsv}
-            className="inline-flex items-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-sm font-medium shadow-sm hover:bg-gray-50 dark:hover:bg-white/5"
+            className="inline-flex items-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-sm font-medium shadow-sm hover:bg-[var(--app-hover)]"
           >
             <Download className="h-4 w-4" />
             Stock CSV
@@ -169,22 +191,37 @@ export function ReportsPage() {
 
       <div
         id="print-root"
-        className="space-y-6 rounded-2xl bg-white p-6 text-black dark:bg-white dark:text-black print:block"
+        className="space-y-6 rounded-2xl bg-[var(--app-surface)] p-6 text-[var(--app-text)] print:block print:bg-white print:text-black"
       >
         <div className="hidden print:block">
           <h1 className="text-2xl font-bold">Cleaning Factory — Report</h1>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-[var(--app-muted)] print:text-gray-600">
             Period: {period} · Generated {new Date().toLocaleString()}
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-6">
           <ReportCard label="Sales revenue" value={formatMoney(revenue)} />
           <ReportCard label="Purchase spend" value={formatMoney(purchaseSpend)} />
           <ReportCard
             label="Profit overview"
             value={formatMoney(profit)}
             hint="Revenue minus purchase costs (period)"
+          />
+          <ReportCard
+            label="Total items sold"
+            value={String(totalItemsSold)}
+            hint="Total no. of items sold"
+          />
+          <ReportCard
+            label="Sold products"
+            value={String(uniqueSoldProducts)}
+            hint="Unique items sold"
+          />
+          <ReportCard
+            label="Shop centers"
+            value={String(uniqueCustomersServed)}
+            hint="Customers with sales"
           />
         </div>
 

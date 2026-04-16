@@ -126,7 +126,7 @@ export function TopBar({ title, onOpenSidebar }: Props) {
                   <li key={p.id}>
                     <button
                       type="button"
-                      className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5"
+                      className="flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-[var(--app-hover)]"
                       onClick={() => {
                         setQ('')
                         navigate('/products')
@@ -150,7 +150,7 @@ export function TopBar({ title, onOpenSidebar }: Props) {
           <button
             type="button"
             onClick={() => setPanelOpen((o) => !o)}
-            className="relative rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-2.5 text-[var(--app-text)] shadow-sm hover:bg-gray-50 dark:hover:bg-white/5"
+            className="relative rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-2.5 text-[var(--app-text)] shadow-sm hover:bg-[var(--app-hover)]"
             aria-label="Notifications"
           >
             <Bell className="h-5 w-5" />
@@ -192,7 +192,7 @@ export function TopBar({ title, onOpenSidebar }: Props) {
                   <li key={n.id}>
                     <button
                       type="button"
-                      className="w-full rounded-lg px-2 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5"
+                      className="w-full rounded-lg px-2 py-2 text-left text-sm hover:bg-[var(--app-hover)]"
                       onClick={() => {
                         markNotificationRead(n.id)
                         setPanelOpen(false)

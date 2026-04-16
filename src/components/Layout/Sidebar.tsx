@@ -82,7 +82,7 @@ export function Sidebar({ open, onClose }: Props) {
           </div>
           <button
             type="button"
-            className="rounded-lg p-2 text-[var(--app-muted)] hover:bg-gray-100 dark:hover:bg-white/10 lg:hidden"
+            className="rounded-lg p-2 text-[var(--app-muted)] hover:bg-[var(--app-hover)] lg:hidden"
             onClick={onClose}
             aria-label="Close menu"
           >
@@ -102,7 +102,7 @@ export function Sidebar({ open, onClose }: Props) {
                   'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors active:scale-[0.99]',
                   isActive
                     ? 'bg-coral-500 text-white shadow-md shadow-coral-500/25'
-                    : 'text-[var(--app-muted)] hover:bg-gray-100 dark:hover:bg-white/5',
+                    : 'text-[var(--app-muted)] hover:bg-[var(--app-hover)]',
                 )
               }
             >

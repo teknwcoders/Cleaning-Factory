@@ -37,7 +37,7 @@ export function ConnectivityBar() {
         <button
           type="button"
           onClick={() => retryRemoteBootstrap()}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-900 shadow-sm hover:bg-red-50 dark:border-red-800 dark:bg-red-950 dark:hover:bg-red-900/50"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-[var(--app-surface)] px-3 py-1.5 text-xs font-semibold text-red-900 shadow-sm hover:bg-red-50 dark:border-red-800 dark:bg-red-950 dark:hover:bg-red-900/50"
         >
           <RefreshCw className="h-3.5 w-3.5" />
           Retry

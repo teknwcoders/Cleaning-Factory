@@ -9,6 +9,7 @@ export function LoginPage() {
     isAuthenticated,
     login,
     signUp,
+    resendSignupConfirmation,
     canAccessModule,
     defaultLandingPath,
     authInitializing,
@@ -28,6 +29,7 @@ export function LoginPage() {
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [resendBusy, setResendBusy] = useState(false)
 
   if (authInitializing) {
     return (
@@ -63,6 +65,30 @@ export function LoginPage() {
       if (!res.ok) setError(res.error)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function handleResendConfirmation() {
+    if (!usesSupabaseAuth) return
+    setError('')
+    setInfo('')
+    const em = email.trim()
+    if (!em) {
+      setError('Enter your email first.')
+      return
+    }
+    setResendBusy(true)
+    try {
+      const r = await resendSignupConfirmation(em)
+      if (!r.ok) {
+        setError(r.error)
+        return
+      }
+      setInfo(
+        'Confirmation email sent. Check your inbox (and spam), then open the link.',
+      )
+    } finally {
+      setResendBusy(false)
     }
   }
 
@@ -218,6 +244,21 @@ export function LoginPage() {
               )}
               Sign in
             </button>
+            {usesSupabaseAuth &&
+              error &&
+              error.toLowerCase().includes('not confirmed') && (
+                <button
+                  type="button"
+                  onClick={() => void handleResendConfirmation()}
+                  disabled={resendBusy || submitting}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] py-3 text-sm font-semibold text-[var(--app-text)] transition hover:bg-[var(--app-surface)] active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coral-500/50 disabled:opacity-60"
+                >
+                  {resendBusy && (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  )}
+                  Resend confirmation email
+                </button>
+              )}
           </form>
         ) : (
           <form onSubmit={handleSignUp} className="space-y-4">
