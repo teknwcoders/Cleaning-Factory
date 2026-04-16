@@ -10,7 +10,7 @@ import { downloadCsv } from '../utils/exportCsv'
 import { formatDateShort, formatMoney, todayISO } from '../utils/format'
 
 type DraftLine = SaleLine & { key: string }
-type SalesPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly'
+type SalesPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'all'
 
 function newKey() {
   return crypto.randomUUID()
@@ -44,7 +44,9 @@ function draftsToLines(drafts: DraftLine[]): SaleLine[] {
 }
 
 function inPeriod(iso: string, period: SalesPeriod): boolean {
+  if (period === 'all') return true
   const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return false
   const now = Date.now()
   const day = 86400000
   if (period === 'daily') return now - t <= day
@@ -75,7 +77,7 @@ export function SalesPage() {
   const [customerSearch, setCustomerSearch] = useState('')
   const [date, setDate] = useState(todayISO())
   const [error, setError] = useState('')
-  const [historyPeriod, setHistoryPeriod] = useState<SalesPeriod>('monthly')
+  const [historyPeriod, setHistoryPeriod] = useState<SalesPeriod>('all')
   const [historyCustomerId, setHistoryCustomerId] = useState('all')
   const [historySelectedDate, setHistorySelectedDate] = useState('')
   /** Product chosen in quick-add dropdown (record sale) */
@@ -128,19 +130,18 @@ export function SalesPage() {
     return next.length ? next : customers
   }, [customerSearch, customers, customerId])
 
-  const historySales = useMemo(
-    () =>
-      sales.filter((s) => {
-        const byPeriod = inPeriod(s.date, historyPeriod)
-        const byCustomer =
-          historyCustomerId === 'all' || s.customerId === historyCustomerId
-        const bySelectedDate = historySelectedDate
-          ? s.date.slice(0, 10) === historySelectedDate
-          : true
-        return byPeriod && byCustomer && bySelectedDate
-      }),
-    [sales, historyPeriod, historyCustomerId, historySelectedDate],
-  )
+  const historySales = useMemo(() => {
+    const filtered = sales.filter((s) => {
+      const byPeriod = inPeriod(s.date, historyPeriod)
+      const byCustomer =
+        historyCustomerId === 'all' || s.customerId === historyCustomerId
+      const bySelectedDate = historySelectedDate
+        ? s.date.slice(0, 10) === historySelectedDate
+        : true
+      return byPeriod && byCustomer && bySelectedDate
+    })
+    return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  }, [sales, historyPeriod, historyCustomerId, historySelectedDate])
 
   const quickPickId =
     quickAddProductId && products.some((p) => p.id === quickAddProductId)
@@ -535,20 +536,21 @@ export function SalesPage() {
           </fieldset>
         </form>
 
-        <div className="overflow-x-auto rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] shadow-sm lg:col-span-2">
+        <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] shadow-sm lg:col-span-2">
           <div className="border-b border-[var(--app-border)] px-4 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between lg:items-center">
               <h2 className="text-base font-semibold text-[var(--app-text)]">
                 Sales history
               </h2>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
                 <select
                   value={historyPeriod}
                   onChange={(e) =>
                     setHistoryPeriod(e.target.value as SalesPeriod)
                   }
-                  className="rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none"
+                  className="col-span-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none sm:col-span-1 sm:w-auto"
                 >
+                  <option value="all">All time</option>
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
                   <option value="monthly">Monthly</option>
@@ -557,7 +559,7 @@ export function SalesPage() {
                 <select
                   value={historyCustomerId}
                   onChange={(e) => setHistoryCustomerId(e.target.value)}
-                  className="rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none"
+                  className="col-span-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none sm:col-span-1 sm:w-auto"
                 >
                   <option value="all">All customers</option>
                   {customers.map((c) => (
@@ -570,14 +572,14 @@ export function SalesPage() {
                   type="date"
                   value={historySelectedDate}
                   onChange={(e) => setHistorySelectedDate(e.target.value)}
-                  className="rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none"
+                  className="col-span-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none sm:col-span-1 sm:w-auto"
                   aria-label="Select date (optional)"
                 />
                 <button
                   type="button"
                   onClick={exportSalesCsv}
                   disabled={!historySales.length}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm font-semibold text-[var(--app-text)] hover:bg-[var(--app-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm font-semibold text-[var(--app-text)] hover:bg-[var(--app-hover)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                   <Download className="h-4 w-4" />
                   CSV
@@ -586,7 +588,7 @@ export function SalesPage() {
                   type="button"
                   onClick={exportSalesPdf}
                   disabled={!historySales.length}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-coral-500 px-3 py-2 text-sm font-semibold text-white hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-coral-500 px-3 py-2 text-sm font-semibold text-white hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500 sm:w-auto"
                 >
                   <Printer className="h-4 w-4" />
                   PDF
@@ -597,93 +599,170 @@ export function SalesPage() {
               Export includes full line details (qty, unit price, line total, and order total) for the selected period, customer, and optional date.
             </p>
           </div>
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-[var(--app-border)] text-xs uppercase text-[var(--app-muted)]">
-                <th className="px-4 py-3 font-medium">Products</th>
-                <th className="px-4 py-3 font-medium">Customer</th>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium text-right">Total</th>
-                <th className="px-4 py-3 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--app-border)]">
-              {historySales.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-4 py-10 text-center text-[var(--app-muted)]"
-                  >
-                    No sales match the selected filters.
-                  </td>
+
+          {/* Mobile Card View */}
+          <div className="block divide-y divide-[var(--app-border)] md:hidden">
+            {historySales.length === 0 && (
+              <div className="px-4 py-10 text-center text-sm text-[var(--app-muted)]">
+                No sales match the selected filters.
+              </div>
+            )}
+            {historySales.map((s) => {
+              const c = customers.find((x) => x.id === s.customerId)
+              const productText = s.lines
+                .map((line) => {
+                  const p = products.find((x) => x.id === line.productId)
+                  return `${p?.name ?? '—'} ×${line.quantity}`
+                })
+                .join(', ')
+
+              return (
+                <div key={s.id} className="flex flex-col gap-3 p-4 hover:bg-[var(--app-bg)]/70">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-[var(--app-text)]">
+                        {c?.name ?? '—'}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[var(--app-muted)]">
+                        {formatDateShort(s.date)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-coral-600 dark:text-coral-400">
+                        {formatMoney(saleOrderTotal(s))}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[var(--app-muted)]">
+                        {s.lines.length} item{s.lines.length === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="rounded-xl bg-[var(--app-bg)] px-3 py-2">
+                    <p className="line-clamp-2 text-xs text-[var(--app-muted)]" title={productText}>
+                      {productText}
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(s)}
+                      title={readOnly ? 'View details (read-only)' : undefined}
+                      className="inline-flex items-center justify-center rounded-lg border border-transparent bg-[var(--app-bg)] p-2 text-[var(--app-muted)] hover:border-[var(--app-border)] hover:bg-gray-100 dark:hover:bg-white/10"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          confirm(
+                            'Delete this sale? Stock will be restored for all lines.',
+                          )
+                        )
+                          deleteSale(s.id)
+                      }}
+                      {...readOnlyButtonProps}
+                      className="inline-flex items-center justify-center rounded-lg border border-transparent bg-red-50 p-2 text-red-600 hover:border-red-200 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-red-950/20 dark:hover:bg-red-950/40"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-[var(--app-border)] text-xs uppercase text-[var(--app-muted)]">
+                  <th className="px-4 py-3 font-medium">Products</th>
+                  <th className="px-4 py-3 font-medium">Customer</th>
+                  <th className="px-4 py-3 font-medium">Date</th>
+                  <th className="px-4 py-3 font-medium text-right">Total</th>
+                  <th className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
-              )}
-              {historySales.map((s) => {
-                const c = customers.find((x) => x.id === s.customerId)
-                const productText = s.lines
-                  .map((line) => {
-                    const p = products.find((x) => x.id === line.productId)
-                    return `${p?.name ?? '—'} ×${line.quantity}`
-                  })
-                  .join(', ')
-                return (
-                  <tr key={s.id}>
-                    <td className="max-w-[280px] px-4 py-3">
-                      <p
-                        className="font-medium text-[var(--app-text)] line-clamp-2"
-                        title={productText}
-                      >
-                        {productText}
-                      </p>
-                      <p className="text-xs text-[var(--app-muted)]">
-                        {s.lines.length} line{s.lines.length === 1 ? '' : 's'}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 text-[var(--app-muted)]">
-                      {c?.name ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-[var(--app-muted)]">
-                      {formatDateShort(s.date)}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-coral-600 dark:text-coral-400">
-                      {formatMoney(saleOrderTotal(s))}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex flex-wrap items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(s)}
-                          title={readOnly ? 'View details (read-only)' : undefined}
-                          className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2 py-1.5 text-xs font-medium text-[var(--app-muted)] hover:border-[var(--app-border)] hover:bg-gray-100 dark:hover:bg-white/10"
-                        >
-                          <Pencil className="h-4 w-4" />
-                          <span className="hidden sm:inline">
-                            {readOnly ? 'View' : 'Edit'}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (
-                              confirm(
-                                'Delete this sale? Stock will be restored for all lines.',
-                              )
-                            )
-                              deleteSale(s.id)
-                          }}
-                          {...readOnlyButtonProps}
-                          className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2 py-1.5 text-xs font-medium text-red-600 hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:border-red-900 dark:hover:bg-red-950/30"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="hidden sm:inline">Delete</span>
-                        </button>
-                      </div>
+              </thead>
+              <tbody className="divide-y divide-[var(--app-border)]">
+                {historySales.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-4 py-10 text-center text-[var(--app-muted)]"
+                    >
+                      No sales match the selected filters.
                     </td>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                )}
+                {historySales.map((s) => {
+                  const c = customers.find((x) => x.id === s.customerId)
+                  const productText = s.lines
+                    .map((line) => {
+                      const p = products.find((x) => x.id === line.productId)
+                      return `${p?.name ?? '—'} ×${line.quantity}`
+                    })
+                    .join(', ')
+                  return (
+                    <tr key={s.id}>
+                      <td className="max-w-[280px] px-4 py-3">
+                        <p
+                          className="font-medium text-[var(--app-text)] line-clamp-2"
+                          title={productText}
+                        >
+                          {productText}
+                        </p>
+                        <p className="text-xs text-[var(--app-muted)]">
+                          {s.lines.length} line{s.lines.length === 1 ? '' : 's'}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-[var(--app-muted)]">
+                        {c?.name ?? '—'}
+                      </td>
+                      <td className="px-4 py-3 text-[var(--app-muted)]">
+                        {formatDateShort(s.date)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-coral-600 dark:text-coral-400">
+                        {formatMoney(saleOrderTotal(s))}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex flex-wrap items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(s)}
+                            title={readOnly ? 'View details (read-only)' : undefined}
+                            className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2 py-1.5 text-xs font-medium text-[var(--app-muted)] hover:border-[var(--app-border)] hover:bg-gray-100 dark:hover:bg-white/10"
+                          >
+                            <Pencil className="h-4 w-4" />
+                            <span className="hidden sm:inline">
+                              {readOnly ? 'View' : 'Edit'}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  'Delete this sale? Stock will be restored for all lines.',
+                                )
+                              )
+                                deleteSale(s.id)
+                            }}
+                            {...readOnlyButtonProps}
+                            className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2 py-1.5 text-xs font-medium text-red-600 hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:border-red-900 dark:hover:bg-red-950/30"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="hidden sm:inline">Delete</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
