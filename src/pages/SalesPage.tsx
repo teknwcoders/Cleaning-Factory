@@ -200,7 +200,7 @@ export function SalesPage() {
       lines: payload,
     })
     if (!res.ok) {
-      setError(res.error)
+      setError('error' in res ? res.error : 'An error occurred')
       return
     }
     showToast({ message: 'Sale recorded.', variant: 'success' })
@@ -230,7 +230,7 @@ export function SalesPage() {
       lines: draftsToLines(editLines),
     })
     if (!res.ok) {
-      setEditError(res.error)
+      setEditError('error' in res ? res.error : 'An error occurred')
       return
     }
     showToast({ message: 'Sale updated.', variant: 'success' })

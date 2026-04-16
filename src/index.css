@@ -55,6 +55,7 @@ button {
 
 #root {
   min-height: 100dvh;
+  overflow-x: hidden;
 }
 
 /* Print-friendly report (Save as PDF from print dialog) */
@@ -63,10 +64,13 @@ button {
   #print-root.print-root-offscreen {
     position: absolute;
     left: -9999px;
-    top: 0;
-    width: 8.5in;
-    max-width: 100%;
-    box-sizing: border-box;
+    top: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 }
 
