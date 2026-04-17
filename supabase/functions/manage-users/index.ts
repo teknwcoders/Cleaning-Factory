@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 type Role = 'manager' | 'sales' | 'viewer'
 
@@ -26,6 +26,48 @@ function json(body: unknown, status = 200) {
 
 function appError(message: string) {
   return json({ error: message }, 200)
+}
+
+function normalizeRedirectTo(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const value = raw.trim()
+  if (!value) return null
+  try {
+    const parsed = new URL(value)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
+
+function isDuplicateEmailInviteError(message: string): boolean {
+  const m = message.toLowerCase()
+  return (
+    m.includes('already been registered') ||
+    m.includes('already registered') ||
+    m.includes('user already registered') ||
+    m.includes('email address is already') ||
+    m.includes('duplicate')
+  )
+}
+
+async function findUserIdByEmail(
+  adminClient: SupabaseClient,
+  email: string,
+): Promise<string | null> {
+  const lower = email.toLowerCase()
+  let page = 1
+  const perPage = 1000
+  for (;;) {
+    const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage })
+    if (error) return null
+    const found = data.users.find((u) => u.email?.toLowerCase() === lower)
+    if (found?.id) return found.id
+    if (!data.users.length || data.users.length < perPage) break
+    page++
+  }
+  return null
 }
 
 Deno.serve(async (req) => {
@@ -105,12 +147,41 @@ Deno.serve(async (req) => {
     if (action === 'invite_sales') {
       const email = String(body.email ?? '').trim().toLowerCase()
       if (!email) return appError('Email is required.')
-      const redirectTo = `${new URL(req.url).origin}/login`
+      const redirectTo = normalizeRedirectTo(body.redirectTo)
+      if (!redirectTo) {
+        return appError('Valid redirectTo URL is required for invite flow.')
+      }
       const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
         redirectTo,
         data: { account_type: 'sales' },
       })
-      if (error) return appError(error.message)
+      if (error) {
+        if (!isDuplicateEmailInviteError(error.message)) {
+          return appError(error.message)
+        }
+        const existingId = await findUserIdByEmail(adminClient, email)
+        if (!existingId) {
+          return appError(
+            'This email is already registered, but the account could not be found. Try again or set role from the user list.',
+          )
+        }
+        const { error: upsertExistingErr } = await adminClient.from('app_user_roles').upsert(
+          {
+            user_id: existingId,
+            role: 'sales',
+            active: true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' },
+        )
+        if (upsertExistingErr) return appError(upsertExistingErr.message)
+        return json({
+          data: {
+            userId: existingId,
+            alreadyRegistered: true as const,
+          },
+        })
+      }
       const userId = data.user?.id
       if (!userId) return appError('Could not create invited user.')
       const { error: upsertErr } = await adminClient.from('app_user_roles').upsert(

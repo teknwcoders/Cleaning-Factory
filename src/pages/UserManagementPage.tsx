@@ -55,10 +55,18 @@ export function UserManagementPage() {
       return
     }
     setEmail('')
-    showToast({
-      message: 'Sales invite sent. User will set password via secure email link.',
-      variant: 'success',
-    })
+    if (res.data?.alreadyRegistered) {
+      showToast({
+        message:
+          'That email already has an account. Their role is now set to Sales — they can sign in with the password they already use.',
+        variant: 'success',
+      })
+    } else {
+      showToast({
+        message: 'Sales invite sent. User will set password via secure email link.',
+        variant: 'success',
+      })
+    }
     await reloadUsers()
   }
 

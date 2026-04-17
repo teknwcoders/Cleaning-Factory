@@ -195,13 +195,6 @@ export function LoginPage() {
             {info}
           </p>
         )}
-        {usesSupabaseAuth && (
-          <p className="mb-4 text-center text-xs text-[var(--app-muted)]">
-            Invited user? Open your email invite link, then set password at{' '}
-            <code className="rounded bg-gray-100 px-1 dark:bg-white/10">/set-password</code>.
-          </p>
-        )}
-
         {mode === 'signin' || !usesSupabaseAuth ? (
           <form onSubmit={handleSignIn} className="space-y-4">
             <div>
