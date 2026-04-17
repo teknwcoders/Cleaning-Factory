@@ -22,6 +22,32 @@ export type SaleLine = {
   unitPrice: number
 }
 
+export type OrderItem = {
+  name: string
+  quantity: number
+  price?: number
+}
+
+export type Order = {
+  id: string
+  customerName: string
+  phone: string
+  location: string
+  date: string
+  items: OrderItem[]
+}
+
+export function orderTotalQuantity(order: Order): number {
+  return order.items.reduce((sum, item) => sum + item.quantity, 0)
+}
+
+export function orderTotalPrice(order: Order): number {
+  return order.items.reduce(
+    (sum, item) => sum + item.quantity * (item.price ?? 0),
+    0,
+  )
+}
+
 /** One sale order — may include multiple products (lines). */
 export type Sale = {
   id: string

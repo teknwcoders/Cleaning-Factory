@@ -12,6 +12,8 @@ import {
 import type {
   AppNotification,
   Customer,
+  Order,
+  OrderItem,
   Product,
   ProductionEntry,
   Purchase,
@@ -195,6 +197,44 @@ function migrateSales(raw: unknown): Sale[] {
   })
 }
 
+function migrateOrders(raw: unknown): Order[] {
+  if (!Array.isArray(raw)) return []
+  return raw.map((item: unknown) => {
+    const o = item as Record<string, unknown> | null
+    if (!o || typeof o !== 'object') {
+      return {
+        id: id(),
+        customerName: '',
+        phone: '',
+        location: '',
+        date: new Date().toISOString(),
+        items: [],
+      }
+    }
+    const rawItems = Array.isArray(o.items) ? o.items : []
+    const items: OrderItem[] = rawItems.map((entry) => {
+      const x = entry as Record<string, unknown>
+      const price =
+        typeof x.price === 'number' || typeof x.price === 'string'
+          ? Number(x.price)
+          : undefined
+      return {
+        name: String(x.name ?? ''),
+        quantity: Number(x.quantity ?? 0),
+        price: Number.isFinite(price) ? price : undefined,
+      }
+    })
+    return {
+      id: String(o.id ?? id()),
+      customerName: String(o.customerName ?? ''),
+      phone: String(o.phone ?? ''),
+      location: String(o.location ?? ''),
+      date: String(o.date ?? new Date().toISOString()),
+      items,
+    }
+  })
+}
+
 function emptyAppData(): AppData {
   return {
     products: [],
@@ -251,6 +291,7 @@ export type RemoteBootstrapState = 'skipped' | 'loading' | 'ready' | 'error'
 export type CloudSyncState = 'idle' | 'syncing' | 'saved' | 'error'
 
 type DataContextValue = AppData & {
+  orders: Order[]
   /** First load from Supabase (or skipped if env not set). */
   remoteBootstrap: RemoteBootstrapState
   remoteBootstrapError: string | null
@@ -298,6 +339,12 @@ type DataContextValue = AppData & {
   markNotificationRead: (nid: string) => void
   markAllNotificationsRead: () => void
   pushNotification: (message: string) => void
+  addOrder: (input: Omit<Order, 'id'>) => { ok: true } | { ok: false; error: string }
+  updateOrder: (
+    orderId: string,
+    input: Omit<Order, 'id'>,
+  ) => { ok: true } | { ok: false; error: string }
+  deleteOrder: (orderId: string) => void
   customerOrderCount: (customerId: string) => number
   lowStockProducts: Product[]
   todaySalesTotal: number
@@ -327,6 +374,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [readOnly, showToast])
 
   const [data, setData] = useState<AppData>(load)
+  const [orders, setOrders] = useState<Order[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (!raw) return []
+      const parsed = JSON.parse(raw) as Record<string, unknown>
+      return migrateOrders(parsed.orders)
+    } catch {
+      return []
+    }
+  })
   const remoteHydratedRef = useRef(!getSupabase())
   const [remoteBootstrap, setRemoteBootstrap] = useState<RemoteBootstrapState>(
     () => (isSupabaseConfigured() ? 'loading' : 'skipped'),
@@ -384,7 +441,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, orders }))
     } catch {
       /* ignore */
     }
@@ -419,7 +476,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       })()
     }, 650)
     return () => window.clearTimeout(t)
-  }, [data, readOnly])
+  }, [data, orders, readOnly])
 
   const pushNotification = useCallback((message: string) => {
     if (!readOnlyGuard()) return
@@ -436,6 +493,90 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ].slice(0, 50),
     }))
   }, [readOnlyGuard])
+
+  const addOrder = useCallback(
+    (input: Omit<Order, 'id'>): { ok: true } | { ok: false; error: string } => {
+      if (!readOnlyGuard()) return { ok: false, error: 'View only.' }
+      const cleanName = input.customerName.trim()
+      if (!cleanName) return { ok: false, error: 'Customer name is required.' }
+      const normalizedItems = input.items
+        .map((item) => ({
+          name: item.name.trim(),
+          quantity: Number(item.quantity),
+          price:
+            item.price === undefined || item.price === null
+              ? undefined
+              : Number(item.price),
+        }))
+        .filter((item) => item.name && Number.isFinite(item.quantity) && item.quantity > 0)
+      if (!normalizedItems.length) {
+        return { ok: false, error: 'Add at least one product with quantity.' }
+      }
+      setOrders((prev) => [
+        {
+          id: id(),
+          customerName: cleanName,
+          phone: input.phone.trim(),
+          location: input.location.trim(),
+          date: new Date(input.date).toISOString(),
+          items: normalizedItems,
+        },
+        ...prev,
+      ])
+      return { ok: true }
+    },
+    [readOnlyGuard],
+  )
+
+  const updateOrder = useCallback(
+    (
+      orderId: string,
+      input: Omit<Order, 'id'>,
+    ): { ok: true } | { ok: false; error: string } => {
+      if (!readOnlyGuard()) return { ok: false, error: 'View only.' }
+      const cleanName = input.customerName.trim()
+      if (!cleanName) return { ok: false, error: 'Customer name is required.' }
+      const normalizedItems = input.items
+        .map((item) => ({
+          name: item.name.trim(),
+          quantity: Number(item.quantity),
+          price:
+            item.price === undefined || item.price === null
+              ? undefined
+              : Number(item.price),
+        }))
+        .filter((item) => item.name && Number.isFinite(item.quantity) && item.quantity > 0)
+      if (!normalizedItems.length) {
+        return { ok: false, error: 'Add at least one product with quantity.' }
+      }
+      let found = false
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== orderId) return order
+          found = true
+          return {
+            ...order,
+            customerName: cleanName,
+            phone: input.phone.trim(),
+            location: input.location.trim(),
+            date: new Date(input.date).toISOString(),
+            items: normalizedItems,
+          }
+        }),
+      )
+      if (!found) return { ok: false, error: 'Order not found.' }
+      return { ok: true }
+    },
+    [readOnlyGuard],
+  )
+
+  const deleteOrder = useCallback(
+    (orderId: string) => {
+      if (!readOnlyGuard()) return
+      setOrders((prev) => prev.filter((order) => order.id !== orderId))
+    },
+    [readOnlyGuard],
+  )
 
   const addProduct = useCallback((p: Omit<Product, 'id'>) => {
     if (!readOnlyGuard()) return
@@ -835,6 +976,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const value = useMemo<DataContextValue>(
     () => ({
       ...data,
+      orders,
       remoteBootstrap,
       remoteBootstrapError,
       cloudSync,
@@ -861,6 +1003,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       markNotificationRead,
       markAllNotificationsRead,
       pushNotification,
+      addOrder,
+      updateOrder,
+      deleteOrder,
       customerOrderCount,
       lowStockProducts,
       todaySalesTotal,
@@ -868,6 +1013,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }),
     [
       data,
+      orders,
       remoteBootstrap,
       remoteBootstrapError,
       cloudSync,
@@ -894,6 +1040,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       markNotificationRead,
       markAllNotificationsRead,
       pushNotification,
+      addOrder,
+      updateOrder,
+      deleteOrder,
       customerOrderCount,
       lowStockProducts,
       todaySalesTotal,

@@ -11,6 +11,7 @@ import { CustomersPage } from './pages/CustomersPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { EmailConfirmedPage } from './pages/EmailConfirmedPage'
 import { LoginPage } from './pages/LoginPage'
+import { OrdersPage } from './pages/OrdersPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { ProductionPage } from './pages/ProductionPage'
 import { PurchasesPage } from './pages/PurchasesPage'
@@ -85,6 +86,14 @@ export default function App() {
                     element={
                       <RequireModule module="sales">
                         <SalesPage />
+                      </RequireModule>
+                    }
+                  />
+                  <Route
+                    path="/orders"
+                    element={
+                      <RequireModule module="orders">
+                        <OrdersPage />
                       </RequireModule>
                     }
                   />

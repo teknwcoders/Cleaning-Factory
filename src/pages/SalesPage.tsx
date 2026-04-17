@@ -79,7 +79,8 @@ export function SalesPage() {
   const [error, setError] = useState('')
   const [historyPeriod, setHistoryPeriod] = useState<SalesPeriod>('all')
   const [historyCustomerId, setHistoryCustomerId] = useState('all')
-  const [historySelectedDate, setHistorySelectedDate] = useState('')
+  const [historyFromDate, setHistoryFromDate] = useState('')
+  const [historyToDate, setHistoryToDate] = useState('')
   /** Product chosen in quick-add dropdown (record sale) */
   const [quickAddProductId, setQuickAddProductId] = useState('')
   const [editQuickAddProductId, setEditQuickAddProductId] = useState('')
@@ -131,17 +132,23 @@ export function SalesPage() {
   }, [customerSearch, customers, customerId])
 
   const historySales = useMemo(() => {
+    const fromMs = historyFromDate
+      ? new Date(`${historyFromDate}T00:00:00.000`).getTime()
+      : null
+    const toMs = historyToDate
+      ? new Date(`${historyToDate}T23:59:59.999`).getTime()
+      : null
     const filtered = sales.filter((s) => {
       const byPeriod = inPeriod(s.date, historyPeriod)
       const byCustomer =
         historyCustomerId === 'all' || s.customerId === historyCustomerId
-      const bySelectedDate = historySelectedDate
-        ? s.date.slice(0, 10) === historySelectedDate
-        : true
-      return byPeriod && byCustomer && bySelectedDate
+      const dateMs = new Date(s.date).getTime()
+      const byFromDate = fromMs === null || dateMs >= fromMs
+      const byToDate = toMs === null || dateMs <= toMs
+      return byPeriod && byCustomer && byFromDate && byToDate
     })
     return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [sales, historyPeriod, historyCustomerId, historySelectedDate])
+  }, [sales, historyPeriod, historyCustomerId, historyFromDate, historyToDate])
 
   const quickPickId =
     quickAddProductId && products.some((p) => p.id === quickAddProductId)
@@ -395,7 +402,7 @@ export function SalesPage() {
                     required
                     title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
                     disabled={readOnly}
-                    className="w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-70"
+                    className="w-full min-w-0 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-70"
                     value={customerId}
                     onChange={(e) => setCustomerId(e.target.value)}
                   >
@@ -416,7 +423,7 @@ export function SalesPage() {
                 required
                 readOnly={readOnly}
                 title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
-                className="w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 read-only:cursor-default read-only:opacity-90"
+                className="w-full min-w-0 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 read-only:cursor-default read-only:opacity-90"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
               />
@@ -480,7 +487,7 @@ export function SalesPage() {
                           min={1}
                           readOnly={readOnly}
                           title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
-                          className="w-full rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
+                          className="w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
                           value={row.quantity}
                           onChange={(e) =>
                             updateLine(row.key, {
@@ -499,7 +506,7 @@ export function SalesPage() {
                           step="0.01"
                           readOnly={readOnly}
                           title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
-                          className="w-full rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
+                          className="w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
                           value={row.unitPrice}
                           onChange={(e) =>
                             updateLine(row.key, {
@@ -570,10 +577,17 @@ export function SalesPage() {
                 </select>
                 <input
                   type="date"
-                  value={historySelectedDate}
-                  onChange={(e) => setHistorySelectedDate(e.target.value)}
+                  value={historyFromDate}
+                  onChange={(e) => setHistoryFromDate(e.target.value)}
                   className="col-span-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none sm:col-span-1 sm:w-auto"
-                  aria-label="Select date (optional)"
+                  aria-label="From date (optional)"
+                />
+                <input
+                  type="date"
+                  value={historyToDate}
+                  onChange={(e) => setHistoryToDate(e.target.value)}
+                  className="col-span-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none sm:col-span-1 sm:w-auto"
+                  aria-label="To date (optional)"
                 />
                 <button
                   type="button"
@@ -777,7 +791,7 @@ export function SalesPage() {
           {historyCustomerId === 'all'
             ? 'All customers'
             : customers.find((c) => c.id === historyCustomerId)?.name ?? 'Unknown'}{' '}
-          · Date: {historySelectedDate || 'Any'}{' '}
+          · From: {historyFromDate || 'Any'} · To: {historyToDate || 'Any'}{' '}
           · Generated {new Date().toLocaleString()}
         </p>
         <table
@@ -871,7 +885,7 @@ export function SalesPage() {
               required
               title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
               disabled={readOnly}
-              className="w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-70"
+              className="w-full min-w-0 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-70"
               value={editCustomerId}
               onChange={(e) => setEditCustomerId(e.target.value)}
             >
@@ -891,7 +905,7 @@ export function SalesPage() {
               required
               readOnly={readOnly}
               title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
-              className="w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 read-only:cursor-default read-only:opacity-90"
+              className="w-full min-w-0 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 read-only:cursor-default read-only:opacity-90"
               value={editDate}
               onChange={(e) => setEditDate(e.target.value)}
             />
@@ -975,7 +989,7 @@ export function SalesPage() {
                       min={1}
                       readOnly={readOnly}
                       title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
-                      className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
+                      className="w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
                       value={row.quantity}
                       onChange={(e) =>
                         updateEditLine(row.key, {
@@ -989,7 +1003,7 @@ export function SalesPage() {
                       step="0.01"
                       readOnly={readOnly}
                       title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
-                      className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
+                      className="w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
                       value={row.unitPrice}
                       onChange={(e) =>
                         updateEditLine(row.key, {
