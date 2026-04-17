@@ -362,11 +362,11 @@ export function SalesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-3">
+    <div className="min-w-0 space-y-6">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-3">
         <form
           onSubmit={handleSubmit}
-          className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-5 shadow-sm lg:col-span-1"
+          className="min-w-0 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4 shadow-sm sm:p-5 lg:col-span-1"
         >
           <div className="mb-4 flex items-center gap-2">
             <div className="rounded-xl bg-coral-100 p-2 text-coral-600 dark:bg-coral-950/50 dark:text-coral-300">
@@ -422,7 +422,7 @@ export function SalesPage() {
                 Customer
               </label>
                 <div className="space-y-2">
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
                     <input
                       type="search"
                       value={customerSearch}
@@ -433,7 +433,7 @@ export function SalesPage() {
                     <button
                       type="button"
                       onClick={() => customerSelectRef.current?.focus()}
-                      className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-sm font-semibold text-[var(--app-text)] shadow-sm transition hover:bg-gray-100 dark:hover:bg-white/10"
+                      className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-sm font-semibold text-[var(--app-text)] shadow-sm transition hover:bg-gray-100 dark:hover:bg-white/10 sm:min-h-0"
                     >
                       Search
                     </button>
@@ -471,7 +471,7 @@ export function SalesPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-xs font-medium text-[var(--app-muted)]">
                   Products in this sale
                 </span>
@@ -479,7 +479,7 @@ export function SalesPage() {
                   type="button"
                   onClick={addEmptyLine}
                   {...readOnlyButtonProps}
-                  className="text-xs font-semibold text-coral-600 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50 dark:text-coral-400"
+                  className="self-start text-xs font-semibold text-coral-600 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50 sm:self-auto dark:text-coral-400"
                 >
                   + Add line
                 </button>
@@ -491,34 +491,38 @@ export function SalesPage() {
                     key={row.key}
                     className="rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] p-3"
                   >
-                    <div className="mb-2 flex gap-2 items-end">
-                      <ProductSelectWithSearch
-                        variant="compact"
-                        hideLabel
-                        label="Product"
-                        products={products}
-                        value={row.productId}
-                        onChange={(id) =>
-                          updateLine(row.key, { productId: id })
-                        }
-                        disabled={readOnly}
-                        allowSearchWhileLocked={readOnly}
-                        showStock
-                        stockLabelFormat="paren"
-                        selectClassName="w-full rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1.5 text-xs text-[var(--app-text)] outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeLine(row.key)}
-                        disabled={lines.length <= 1}
-                        {...readOnlyButtonProps}
-                        className="shrink-0 rounded-lg p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-30 dark:hover:bg-red-950/30"
-                        aria-label="Remove line"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                    <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <div className="min-w-0 flex-1">
+                        <ProductSelectWithSearch
+                          variant="compact"
+                          hideLabel
+                          label="Product"
+                          products={products}
+                          value={row.productId}
+                          onChange={(id) =>
+                            updateLine(row.key, { productId: id })
+                          }
+                          disabled={readOnly}
+                          allowSearchWhileLocked={readOnly}
+                          showStock
+                          stockLabelFormat="paren"
+                          selectClassName="w-full rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1.5 text-xs text-[var(--app-text)] outline-none"
+                        />
+                      </div>
+                      <div className="flex shrink-0 justify-end sm:justify-start">
+                        <button
+                          type="button"
+                          onClick={() => removeLine(row.key)}
+                          disabled={lines.length <= 1}
+                          {...readOnlyButtonProps}
+                          className="rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:opacity-30 sm:p-1.5 dark:hover:bg-red-950/30"
+                          aria-label="Remove line"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <div>
                         <label className="mb-0.5 block text-[10px] text-[var(--app-muted)]">
                           Qty
