@@ -532,7 +532,7 @@ export function SalesPage() {
                           min={1}
                           readOnly={readOnly}
                           title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
-                          className="w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
+                          className="min-h-10 w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
                           value={row.quantity}
                           onChange={(e) => {
                             const v = e.target.value
@@ -552,7 +552,7 @@ export function SalesPage() {
                           step="0.01"
                           readOnly={readOnly}
                           title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
-                          className="w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
+                          className="min-h-10 w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
                           value={row.unitPrice}
                           onChange={(e) => {
                             const v = e.target.value
@@ -597,19 +597,19 @@ export function SalesPage() {
           </fieldset>
         </form>
 
-        <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] shadow-sm lg:col-span-2">
-          <div className="border-b border-[var(--app-border)] px-4 py-3">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between lg:items-center">
+        <div className="min-w-0 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] shadow-sm lg:col-span-2">
+          <div className="border-b border-[var(--app-border)] px-3 py-3 sm:px-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <h2 className="text-base font-semibold text-[var(--app-text)]">
                 Sales history
               </h2>
-              <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+              <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-stretch lg:max-w-3xl lg:justify-end">
                 <select
                   value={historyPeriod}
                   onChange={(e) =>
                     setHistoryPeriod(e.target.value as SalesPeriod)
                   }
-                  className="col-span-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none sm:col-span-1 sm:w-auto"
+                  className="w-full min-w-0 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none sm:w-[min(100%,11rem)]"
                 >
                   <option value="all">All time</option>
                   <option value="daily">Daily</option>
@@ -620,7 +620,7 @@ export function SalesPage() {
                 <select
                   value={historyCustomerId}
                   onChange={(e) => setHistoryCustomerId(e.target.value)}
-                  className="col-span-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none sm:col-span-1 sm:w-auto"
+                  className="w-full min-w-0 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none sm:w-[min(100%,14rem)]"
                 >
                   <option value="all">All customers</option>
                   {customers.map((c) => (
@@ -629,38 +629,42 @@ export function SalesPage() {
                     </option>
                   ))}
                 </select>
-                <input
-                  type="date"
-                  value={historyFromDate}
-                  onChange={(e) => setHistoryFromDate(e.target.value)}
-                  className="col-span-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none sm:col-span-1 sm:w-auto"
-                  aria-label="From date (optional)"
-                />
-                <input
-                  type="date"
-                  value={historyToDate}
-                  onChange={(e) => setHistoryToDate(e.target.value)}
-                  className="col-span-2 w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none sm:col-span-1 sm:w-auto"
-                  aria-label="To date (optional)"
-                />
-                <button
-                  type="button"
-                  onClick={exportSalesCsv}
-                  disabled={!historySales.length}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm font-semibold text-[var(--app-text)] hover:bg-[var(--app-hover)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-                >
-                  <Download className="h-4 w-4" />
-                  CSV
-                </button>
-                <button
-                  type="button"
-                  onClick={exportSalesPdf}
-                  disabled={!historySales.length}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-coral-500 px-3 py-2 text-sm font-semibold text-white hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500 sm:w-auto"
-                >
-                  <Printer className="h-4 w-4" />
-                  PDF
-                </button>
+                <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-1 sm:flex-row sm:gap-2">
+                  <input
+                    type="date"
+                    value={historyFromDate}
+                    onChange={(e) => setHistoryFromDate(e.target.value)}
+                    className="min-h-11 min-w-0 flex-1 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none"
+                    aria-label="From date (optional)"
+                  />
+                  <input
+                    type="date"
+                    value={historyToDate}
+                    onChange={(e) => setHistoryToDate(e.target.value)}
+                    className="min-h-11 min-w-0 flex-1 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-text)] outline-none"
+                    aria-label="To date (optional)"
+                  />
+                </div>
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                  <button
+                    type="button"
+                    onClick={exportSalesCsv}
+                    disabled={!historySales.length}
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm font-semibold text-[var(--app-text)] hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-white/10 sm:min-h-0 sm:w-auto"
+                  >
+                    <Download className="h-4 w-4" />
+                    CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exportSalesPdf}
+                    disabled={!historySales.length}
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-coral-500 px-3 py-2 text-sm font-semibold text-white hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500 sm:min-h-0 sm:w-auto"
+                  >
+                    <Printer className="h-4 w-4" />
+                    PDF
+                  </button>
+                </div>
               </div>
             </div>
             <p className="mt-2 text-xs text-[var(--app-muted)]">
@@ -668,10 +672,10 @@ export function SalesPage() {
             </p>
           </div>
 
-          {/* Mobile Card View */}
-          <div className="block divide-y divide-[var(--app-border)] md:hidden">
+          {/* Mobile / tablet: card list */}
+          <div className="block divide-y divide-[var(--app-border)] lg:hidden">
             {historySales.length === 0 && (
-              <div className="px-4 py-10 text-center text-sm text-[var(--app-muted)]">
+              <div className="px-3 py-10 text-center text-sm text-[var(--app-muted)] sm:px-4">
                 No sales match the selected filters.
               </div>
             )}
@@ -685,7 +689,10 @@ export function SalesPage() {
                 .join(', ')
 
               return (
-                <div key={s.id} className="flex flex-col gap-3 p-4 hover:bg-[var(--app-bg)]/70">
+                <div
+                  key={s.id}
+                  className="flex flex-col gap-3 p-3 hover:bg-[var(--app-bg)]/70 sm:p-4"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-[var(--app-text)]">
@@ -745,8 +752,8 @@ export function SalesPage() {
             })}
           </div>
 
-          {/* Desktop Table View */}
-          <div className="hidden overflow-x-auto md:block">
+          {/* Large screens: table */}
+          <div className="hidden overflow-x-auto lg:block">
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
                 <tr className="border-b border-[var(--app-border)] text-xs uppercase text-[var(--app-muted)]">
@@ -998,7 +1005,7 @@ export function SalesPage() {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-xs font-medium text-[var(--app-muted)]">
                 Lines
               </span>
@@ -1006,7 +1013,7 @@ export function SalesPage() {
                 type="button"
                 onClick={addEditLine}
                 {...readOnlyButtonProps}
-                className="text-xs font-semibold text-coral-600 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50 dark:text-coral-400"
+                className="self-start text-xs font-semibold text-coral-600 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50 sm:self-auto dark:text-coral-400"
               >
                 + Add line
               </button>
@@ -1018,63 +1025,77 @@ export function SalesPage() {
                   key={row.key}
                   className="rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] p-3"
                 >
-                  <div className="mb-2 flex gap-2 items-end">
-                    <ProductSelectWithSearch
-                      variant="compact"
-                      hideLabel
-                      label="Product"
-                      products={products}
-                      value={row.productId}
-                      onChange={(id) =>
-                        updateEditLine(row.key, { productId: id })
-                      }
-                      disabled={readOnly}
-                      allowSearchWhileLocked={readOnly}
-                      showStock
-                      stockLabelFormat="paren"
-                      selectClassName="w-full rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1.5 text-xs text-[var(--app-text)] outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeEditLine(row.key)}
-                      disabled={editLines.length <= 1}
-                      {...readOnlyButtonProps}
-                      className="shrink-0 rounded-lg p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-30 dark:hover:bg-red-950/30"
-                      aria-label="Remove line"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                  <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+                    <div className="min-w-0 flex-1">
+                      <ProductSelectWithSearch
+                        variant="compact"
+                        hideLabel
+                        label="Product"
+                        products={products}
+                        value={row.productId}
+                        onChange={(id) =>
+                          updateEditLine(row.key, { productId: id })
+                        }
+                        disabled={readOnly}
+                        allowSearchWhileLocked={readOnly}
+                        showStock
+                        stockLabelFormat="paren"
+                        selectClassName="w-full rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1.5 text-xs text-[var(--app-text)] outline-none"
+                      />
+                    </div>
+                    <div className="flex shrink-0 justify-end sm:justify-start">
+                      <button
+                        type="button"
+                        onClick={() => removeEditLine(row.key)}
+                        disabled={editLines.length <= 1}
+                        {...readOnlyButtonProps}
+                        className="rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:opacity-30 sm:p-1.5 dark:hover:bg-red-950/30"
+                        aria-label="Remove line"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      readOnly={readOnly}
-                      title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
-                      className="w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
-                      value={row.quantity}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        updateEditLine(row.key, {
-                          quantity: v === '' ? '' : Number(v),
-                        })
-                      }}
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      readOnly={readOnly}
-                      title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
-                      className="w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
-                      value={row.unitPrice}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        updateEditLine(row.key, {
-                          unitPrice: v === '' ? '' : Number(v),
-                        })
-                      }}
-                    />
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-0.5 block text-[10px] text-[var(--app-muted)]">
+                        Qty
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        readOnly={readOnly}
+                        title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
+                        className="min-h-10 w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
+                        value={row.quantity}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          updateEditLine(row.key, {
+                            quantity: v === '' ? '' : Number(v),
+                          })
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-0.5 block text-[10px] text-[var(--app-muted)]">
+                        Unit price
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        readOnly={readOnly}
+                        title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
+                        className="min-h-10 w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
+                        value={row.unitPrice}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          updateEditLine(row.key, {
+                            unitPrice: v === '' ? '' : Number(v),
+                          })
+                        }}
+                      />
+                    </div>
                   </div>
                   {p && (
                     <p className="mt-1 text-[10px] text-[var(--app-muted)]">
@@ -1090,7 +1111,7 @@ export function SalesPage() {
             {formatMoney(editLines.reduce((a, l) => a + draftLineSubtotal(l), 0))}
           </p>
           </fieldset>
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={() => {
@@ -1098,14 +1119,14 @@ export function SalesPage() {
                 setEditingSale(null)
                 setEditQuickAddProductId('')
               }}
-              className="rounded-xl border border-[var(--app-border)] px-4 py-2 text-sm font-medium"
+              className="min-h-11 w-full rounded-xl border border-[var(--app-border)] px-4 py-2 text-sm font-medium sm:min-h-0 sm:w-auto"
             >
               Cancel
             </button>
             <button
               type="submit"
               {...readOnlyButtonProps}
-              className="rounded-xl bg-coral-500 px-4 py-2 text-sm font-semibold text-white hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500"
+              className="min-h-11 w-full rounded-xl bg-coral-500 px-4 py-2 text-sm font-semibold text-white hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500 sm:min-h-0 sm:w-auto"
             >
               Save changes
             </button>

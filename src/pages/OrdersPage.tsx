@@ -6,6 +6,7 @@ import {
   PackagePlus,
   Pencil,
   Plus,
+  Printer,
   Search,
   Trash2,
 } from 'lucide-react'
@@ -66,6 +67,8 @@ export function OrdersPage() {
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [exportOpen, setExportOpen] = useState(false)
+  const [ordersForPdf, setOrdersForPdf] = useState<Order[]>([])
+  const [ordersPdfCaption, setOrdersPdfCaption] = useState('')
 
   const [editOpen, setEditOpen] = useState(false)
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
@@ -307,6 +310,17 @@ export function OrdersPage() {
     const stamp = new Date().toISOString().slice(0, 10)
     downloadCsv(`orders-${label}-${stamp}.csv`, headers, rows)
     setExportOpen(false)
+  }
+
+  function exportOrdersPdf(list: Order[], scopeLabel: string) {
+    if (!list.length) return
+    const caption = `${scopeLabel} · Search: ${searchQuery.trim() || '—'} · Location: ${locationFilter === 'all' ? 'All' : locationFilter} · From: ${fromDate || 'Any'} · To: ${toDate || 'Any'} · Generated ${new Date().toLocaleString()}`
+    setOrdersForPdf(list)
+    setOrdersPdfCaption(caption)
+    setExportOpen(false)
+    requestAnimationFrame(() => {
+      window.print()
+    })
   }
 
   return (
@@ -579,23 +593,56 @@ export function OrdersPage() {
                   <ChevronDown className="h-4 w-4" />
                 </button>
                 {exportOpen && (
-                  <div className="absolute right-0 z-10 mt-2 w-64 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-2 shadow-xl">
+                  <div className="absolute right-0 z-10 mt-2 w-72 rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-2 shadow-xl">
                     <button
                       type="button"
                       onClick={() => exportOrdersCsv(orders, 'all')}
-                      className="flex w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-[var(--app-bg)]"
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm hover:bg-[var(--app-bg)]"
                     >
+                      <Download className="h-4 w-4 shrink-0 opacity-70" aria-hidden />
                       Export all orders (CSV)
                     </button>
                     <button
                       type="button"
-                      onClick={() => exportOrdersCsv(filteredOrders, locationFilter === 'all' ? 'filtered' : locationFilter.toLowerCase())}
-                      disabled={!filteredOrders.length}
-                      className="flex w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-[var(--app-bg)] disabled:opacity-50"
+                      onClick={() => exportOrdersPdf(orders, 'All orders')}
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm hover:bg-[var(--app-bg)]"
                     >
+                      <Printer className="h-4 w-4 shrink-0 opacity-70" aria-hidden />
+                      Export all orders (PDF)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        exportOrdersCsv(
+                          filteredOrders,
+                          locationFilter === 'all' ? 'filtered' : locationFilter.toLowerCase(),
+                        )
+                      }
+                      disabled={!filteredOrders.length}
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm hover:bg-[var(--app-bg)] disabled:opacity-50"
+                    >
+                      <Download className="h-4 w-4 shrink-0 opacity-70" aria-hidden />
                       {locationFilter === 'all'
                         ? 'Export current filtered (CSV)'
                         : `Export ${locationFilter} orders (CSV)`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        exportOrdersPdf(
+                          filteredOrders,
+                          locationFilter === 'all'
+                            ? 'Current filtered orders'
+                            : `Orders — ${locationFilter}`,
+                        )
+                      }
+                      disabled={!filteredOrders.length}
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm hover:bg-[var(--app-bg)] disabled:opacity-50"
+                    >
+                      <Printer className="h-4 w-4 shrink-0 opacity-70" aria-hidden />
+                      {locationFilter === 'all'
+                        ? 'Export current filtered (PDF)'
+                        : `Export ${locationFilter} orders (PDF)`}
                     </button>
                   </div>
                 )}
@@ -732,6 +779,89 @@ export function OrdersPage() {
             </table>
           </div>
         </div>
+      </div>
+
+      <div
+        id="print-root"
+        className="print-root-offscreen bg-white p-6 text-black"
+        aria-hidden="true"
+      >
+        <h1 className="text-2xl font-bold">Cleaning Factory — Orders export</h1>
+        <p className="mt-1 text-sm text-gray-600">{ordersPdfCaption}</p>
+        <table
+          className="mt-6 w-full border-collapse text-sm"
+          style={{ border: '1px solid #ccc' }}
+        >
+          <thead>
+            <tr style={{ background: '#f3f4f6' }}>
+              {[
+                'Order ID',
+                'Date',
+                'Customer',
+                'Phone',
+                'Location',
+                'Product',
+                'Qty',
+                'Price',
+                'Line total',
+                'Items (order)',
+                'Order total',
+              ].map((h) => (
+                <th
+                  key={h}
+                  style={{
+                    border: '1px solid #ccc',
+                    padding: '10px 12px',
+                    textAlign: 'left',
+                  }}
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {ordersForPdf.flatMap((order) => {
+              const totalItems = orderTotalQuantity(order)
+              const totalPrice = orderTotalPrice(order)
+              return order.items.map((item, idx) => {
+                const lineTotal =
+                  item.price === undefined ? null : item.quantity * item.price
+                return (
+                  <tr key={`${order.id}-${idx}`}>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>{order.id}</td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {formatDateShort(order.date)}
+                    </td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {order.customerName}
+                    </td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {order.phone || '—'}
+                    </td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {order.location || '—'}
+                    </td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>{item.name}</td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {item.quantity}
+                    </td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {item.price === undefined ? '—' : formatMoney(item.price)}
+                    </td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {lineTotal === null ? '—' : formatMoney(lineTotal)}
+                    </td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>{totalItems}</td>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 12px' }}>
+                      {totalPrice === 0 ? '—' : formatMoney(totalPrice)}
+                    </td>
+                  </tr>
+                )
+              })
+            })}
+          </tbody>
+        </table>
       </div>
 
       <Modal
