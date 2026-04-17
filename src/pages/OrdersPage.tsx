@@ -19,14 +19,14 @@ import { orderTotalPrice, orderTotalQuantity } from '../types'
 import { downloadCsv } from '../utils/exportCsv'
 import { formatDateShort, formatMoney, todayISO } from '../utils/format'
 
-type DraftOrderItem = OrderItem & { key: string }
+type DraftOrderItem = Omit<OrderItem, 'quantity'> & { key: string; quantity: number | '' }
 
 function newKey() {
   return crypto.randomUUID()
 }
 
 function blankItem(name = ''): DraftOrderItem {
-  return { key: newKey(), name, quantity: 1, price: undefined }
+  return { key: newKey(), name, quantity: '', price: undefined }
 }
 
 function itemSummary(order: Order): string {
@@ -160,7 +160,7 @@ export function OrdersPage() {
     setItems((prev) => [...prev, blankItem(prefill)])
   }
 
-  function updateItem(key: string, patch: Partial<OrderItem>) {
+  function updateItem(key: string, patch: Partial<DraftOrderItem>) {
     setItems((prev) => prev.map((item) => (item.key === key ? { ...item, ...patch } : item)))
   }
 
@@ -172,7 +172,7 @@ export function OrdersPage() {
     return list
       .map((item) => ({
         name: item.name.trim(),
-        quantity: Number(item.quantity),
+        quantity: item.quantity === '' ? NaN : Number(item.quantity),
         price:
           item.price === undefined || item.price === null
             ? undefined
@@ -232,7 +232,7 @@ export function OrdersPage() {
     setEditOpen(true)
   }
 
-  function updateEditItem(key: string, patch: Partial<OrderItem>) {
+  function updateEditItem(key: string, patch: Partial<DraftOrderItem>) {
     setEditItems((prev) => prev.map((item) => (item.key === key ? { ...item, ...patch } : item)))
   }
 
@@ -470,7 +470,12 @@ export function OrdersPage() {
                         value={item.quantity}
                         readOnly={readOnly}
                         title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
-                        onChange={(e) => updateItem(item.key, { quantity: Number(e.target.value) })}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          updateItem(item.key, {
+                            quantity: v === '' ? '' : Number(v),
+                          })
+                        }}
                         className="w-full rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs"
                       />
                     </div>
@@ -789,7 +794,12 @@ export function OrdersPage() {
                     min={1}
                     value={item.quantity}
                     readOnly={readOnly}
-                    onChange={(e) => updateEditItem(item.key, { quantity: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      updateEditItem(item.key, {
+                        quantity: v === '' ? '' : Number(v),
+                      })
+                    }}
                     className="rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] px-2 py-1.5 text-xs"
                   />
                   <input

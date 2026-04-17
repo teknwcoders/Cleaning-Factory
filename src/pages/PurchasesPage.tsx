@@ -21,16 +21,16 @@ export function PurchasesPage() {
 
   const [supplier, setSupplier] = useState('')
   const [productId, setProductId] = useState(products[0]?.id ?? '')
-  const [quantity, setQuantity] = useState(1)
-  const [cost, setCost] = useState(0)
+  const [quantity, setQuantity] = useState('')
+  const [cost, setCost] = useState('')
   const [date, setDate] = useState(todayISO())
 
   const [editOpen, setEditOpen] = useState(false)
   const [editing, setEditing] = useState<Purchase | null>(null)
   const [editSupplier, setEditSupplier] = useState('')
   const [editProductId, setEditProductId] = useState('')
-  const [editQuantity, setEditQuantity] = useState(1)
-  const [editCost, setEditCost] = useState(0)
+  const [editQuantity, setEditQuantity] = useState('')
+  const [editCost, setEditCost] = useState('')
   const [editDate, setEditDate] = useState(todayISO())
   const [editError, setEditError] = useState('')
   const [pageError, setPageError] = useState('')
@@ -38,29 +38,35 @@ export function PurchasesPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setPageError('')
-    if (!supplier.trim() || !productId || quantity <= 0) {
+    const q = Number(quantity.trim())
+    const c = Number(cost.trim())
+    if (!supplier.trim() || !productId || !Number.isFinite(q) || q <= 0) {
       setPageError('Supplier, product, and a positive quantity are required.')
+      return
+    }
+    if (!Number.isFinite(c) || c < 0) {
+      setPageError('Enter a valid cost (0 or greater).')
       return
     }
     addPurchase({
       supplier: supplier.trim(),
       productId,
-      quantity,
-      cost,
+      quantity: q,
+      cost: c,
       date: new Date(date).toISOString(),
     })
     showToast({ message: 'Purchase recorded. Stock updated.', variant: 'success' })
     setSupplier('')
-    setQuantity(1)
-    setCost(0)
+    setQuantity('')
+    setCost('')
   }
 
   function openEdit(p: Purchase) {
     setEditing(p)
     setEditSupplier(p.supplier)
     setEditProductId(p.productId)
-    setEditQuantity(p.quantity)
-    setEditCost(p.cost)
+    setEditQuantity(String(p.quantity))
+    setEditCost(String(p.cost))
     const d = new Date(p.date)
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
     setEditDate(d.toISOString().slice(0, 16))
@@ -72,11 +78,21 @@ export function PurchasesPage() {
     e.preventDefault()
     if (!editing) return
     setEditError('')
+    const q = Number(editQuantity.trim())
+    const c = Number(editCost.trim())
+    if (!Number.isFinite(q) || q <= 0) {
+      setEditError('Enter a valid quantity (whole number greater than zero).')
+      return
+    }
+    if (!Number.isFinite(c) || c < 0) {
+      setEditError('Enter a valid cost (0 or greater).')
+      return
+    }
     const res = updatePurchase(editing.id, {
       supplier: editSupplier.trim(),
       productId: editProductId,
-      quantity: editQuantity,
-      cost: editCost,
+      quantity: q,
+      cost: c,
       date: new Date(editDate).toISOString(),
     })
     if (!res.ok) {
@@ -179,7 +195,7 @@ export function PurchasesPage() {
                   title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
                   className="w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 read-only:cursor-default read-only:opacity-90"
                   value={quantity}
-                  onChange={(e) => setQuantity(Number(e.target.value))}
+                  onChange={(e) => setQuantity(e.target.value)}
                 />
               </div>
               <div>
@@ -195,7 +211,7 @@ export function PurchasesPage() {
                   title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
                   className="w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 read-only:cursor-default read-only:opacity-90"
                   value={cost}
-                  onChange={(e) => setCost(Number(e.target.value))}
+                  onChange={(e) => setCost(e.target.value)}
                 />
               </div>
             </div>
@@ -351,7 +367,7 @@ export function PurchasesPage() {
                   title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
                   className="w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 read-only:cursor-default read-only:opacity-90"
                   value={editQuantity}
-                  onChange={(e) => setEditQuantity(Number(e.target.value))}
+                  onChange={(e) => setEditQuantity(e.target.value)}
                 />
               </div>
               <div>
@@ -367,7 +383,7 @@ export function PurchasesPage() {
                   title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
                   className="w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 read-only:cursor-default read-only:opacity-90"
                   value={editCost}
-                  onChange={(e) => setEditCost(Number(e.target.value))}
+                  onChange={(e) => setEditCost(e.target.value)}
                 />
               </div>
             </div>

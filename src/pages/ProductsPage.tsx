@@ -9,11 +9,19 @@ import type { Product } from '../types'
 import { stockStatus } from '../types'
 import { formatMoney } from '../utils/format'
 
-const emptyForm: Omit<Product, 'id'> = {
+type ProductFormState = {
+  name: string
+  category: string
+  /** Empty until the user types (add / edit). */
+  price: string
+  stock: string
+}
+
+const emptyForm: ProductFormState = {
   name: '',
   category: '',
-  price: 0,
-  stock: 0,
+  price: '',
+  stock: '',
 }
 
 export function ProductsPage() {
@@ -33,7 +41,7 @@ export function ProductsPage() {
   const [cat, setCat] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState<ProductFormState>(emptyForm)
   const [formError, setFormError] = useState<string | null>(null)
 
   const categories = useMemo(() => {
@@ -66,8 +74,8 @@ export function ProductsPage() {
     setForm({
       name: p.name,
       category: p.category,
-      price: p.price,
-      stock: p.stock,
+      price: String(p.price),
+      stock: String(p.stock),
     })
     setModalOpen(true)
   }
@@ -78,28 +86,37 @@ export function ProductsPage() {
       setFormError('Name and category are required.')
       return
     }
-    if (form.price < 0 || Number.isNaN(form.price)) {
-      setFormError('Price must be zero or greater.')
+    const price = Number(form.price.trim())
+    const stock = Number(form.stock.trim())
+    if (form.price.trim() === '' || Number.isNaN(price) || price < 0) {
+      setFormError('Enter a valid price (0 or greater).')
       return
     }
-    if (form.stock < 0 || Number.isNaN(form.stock) || !Number.isInteger(form.stock)) {
-      setFormError('Stock must be a whole number, zero or greater.')
+    if (
+      form.stock.trim() === '' ||
+      Number.isNaN(stock) ||
+      !Number.isInteger(stock) ||
+      stock < 0
+    ) {
+      setFormError('Enter a valid whole-number stock (0 or greater).')
       return
     }
     setFormError(null)
     if (editing) {
       updateProduct({
         ...editing,
-        ...form,
         name: form.name.trim(),
         category: form.category.trim(),
+        price,
+        stock,
       })
       showToast({ message: 'Product updated.', variant: 'success' })
     } else {
       addProduct({
-        ...form,
         name: form.name.trim(),
         category: form.category.trim(),
+        price,
+        stock,
       })
       showToast({
         message: `Product “${form.name.trim()}” added.`,
@@ -293,7 +310,7 @@ export function ProductsPage() {
                   className="w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 read-only:cursor-default read-only:opacity-90"
                   value={form.price}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, price: Number(e.target.value) }))
+                    setForm((f) => ({ ...f, price: e.target.value }))
                   }
                 />
               </div>
@@ -310,7 +327,7 @@ export function ProductsPage() {
                   className="w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 read-only:cursor-default read-only:opacity-90"
                   value={form.stock}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, stock: Number(e.target.value) }))
+                    setForm((f) => ({ ...f, stock: e.target.value }))
                   }
                 />
               </div>

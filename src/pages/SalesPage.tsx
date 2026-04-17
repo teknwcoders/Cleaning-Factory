@@ -10,21 +10,56 @@ import { saleLineTotal, saleOrderTotal } from '../types'
 import { downloadCsv } from '../utils/exportCsv'
 import { formatDateShort, formatMoney, todayISO } from '../utils/format'
 
-type DraftLine = SaleLine & { key: string }
+type DraftLine = {
+  key: string
+  productId: string
+  quantity: number | ''
+  unitPrice: number | ''
+}
 type SalesPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'all'
 
 function newKey() {
   return crypto.randomUUID()
 }
 
-function lineFromProduct(productId: string, products: { id: string; price: number }[]): DraftLine {
-  const p = products.find((x) => x.id === productId)
+function lineFromProduct(productId: string, _products: { id: string; price: number }[]): DraftLine {
   return {
     key: newKey(),
     productId,
-    quantity: 1,
-    unitPrice: p?.price ?? 0,
+    quantity: '',
+    unitPrice: '',
   }
+}
+
+function draftLineSubtotal(line: DraftLine): number {
+  const q = line.quantity === '' ? NaN : Number(line.quantity)
+  const u = line.unitPrice === '' ? NaN : Number(line.unitPrice)
+  if (!Number.isFinite(q) || !Number.isFinite(u)) return 0
+  return q * u
+}
+
+function parseDraftsToSaleLines(
+  drafts: DraftLine[],
+): { ok: true; lines: SaleLine[] } | { ok: false; error: string } {
+  const lines: SaleLine[] = []
+  for (const d of drafts) {
+    if (d.quantity === '' || d.unitPrice === '') {
+      return {
+        ok: false,
+        error: 'Enter quantity and unit price on every line before saving.',
+      }
+    }
+    const q = Number(d.quantity)
+    const u = Number(d.unitPrice)
+    if (!Number.isFinite(q) || q <= 0) {
+      return { ok: false, error: 'Each line needs a quantity greater than zero.' }
+    }
+    if (!Number.isFinite(u) || u < 0) {
+      return { ok: false, error: 'Each line needs a valid unit price (0 or greater).' }
+    }
+    lines.push({ productId: d.productId, quantity: q, unitPrice: u })
+  }
+  return { ok: true, lines }
 }
 
 function saleToDrafts(sale: Sale): DraftLine[] {
@@ -36,13 +71,6 @@ function saleToDrafts(sale: Sale): DraftLine[] {
   }))
 }
 
-function draftsToLines(drafts: DraftLine[]): SaleLine[] {
-  return drafts.map(({ productId, quantity, unitPrice }) => ({
-    productId,
-    quantity,
-    unitPrice,
-  }))
-}
 
 function inPeriod(iso: string, period: SalesPeriod): boolean {
   if (period === 'all') return true
@@ -119,7 +147,7 @@ export function SalesPage() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const orderTotalPreview = useMemo(
-    () => lines.reduce((a, l) => a + saleLineTotal(l), 0),
+    () => lines.reduce((a, l) => a + draftLineSubtotal(l), 0),
     [lines],
   )
   const customerSelectRef = useRef<HTMLSelectElement>(null)
@@ -183,7 +211,7 @@ export function SalesPage() {
     setEditLines((prev) => [...prev, lineFromProduct(pid, products)])
   }
 
-  function updateLine(key: string, patch: Partial<SaleLine>) {
+  function updateLine(key: string, patch: Partial<DraftLine>) {
     setLines((prev) =>
       prev.map((row) => {
         if (row.key !== key) return row
@@ -204,11 +232,15 @@ export function SalesPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    const payload = draftsToLines(lines)
+    const parsed = parseDraftsToSaleLines(lines)
+    if (!parsed.ok) {
+      setError(parsed.error)
+      return
+    }
     const res = addSale({
       customerId,
       date: new Date(date).toISOString(),
-      lines: payload,
+      lines: parsed.lines,
     })
     if (!res.ok) {
       setError('error' in res ? res.error : 'An error occurred')
@@ -235,10 +267,15 @@ export function SalesPage() {
     e.preventDefault()
     if (!editingSale) return
     setEditError('')
+    const parsed = parseDraftsToSaleLines(editLines)
+    if (!parsed.ok) {
+      setEditError(parsed.error)
+      return
+    }
     const res = updateSale(editingSale.id, {
       customerId: editCustomerId,
       date: new Date(editDate).toISOString(),
-      lines: draftsToLines(editLines),
+      lines: parsed.lines,
     })
     if (!res.ok) {
       setEditError('error' in res ? res.error : 'An error occurred')
@@ -250,7 +287,7 @@ export function SalesPage() {
     setEditQuickAddProductId('')
   }
 
-  function updateEditLine(key: string, patch: Partial<SaleLine>) {
+  function updateEditLine(key: string, patch: Partial<DraftLine>) {
     setEditLines((prev) =>
       prev.map((row) => {
         if (row.key !== key) return row
@@ -493,11 +530,12 @@ export function SalesPage() {
                           title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
                           className="w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
                           value={row.quantity}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const v = e.target.value
                             updateLine(row.key, {
-                              quantity: Number(e.target.value),
+                              quantity: v === '' ? '' : Number(v),
                             })
-                          }
+                          }}
                         />
                       </div>
                       <div>
@@ -512,18 +550,24 @@ export function SalesPage() {
                           title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
                           className="w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
                           value={row.unitPrice}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const v = e.target.value
                             updateLine(row.key, {
-                              unitPrice: Number(e.target.value),
+                              unitPrice: v === '' ? '' : Number(v),
                             })
-                          }
+                          }}
                         />
                       </div>
                     </div>
                     {p && (
                       <p className="mt-2 text-[10px] text-[var(--app-muted)]">
-                        Line: {formatMoney(saleLineTotal(row))} · After sale
-                        stock: {Math.max(0, p.stock - row.quantity)}
+                        Line: {formatMoney(draftLineSubtotal(row))} · After sale
+                        stock:{' '}
+                        {Math.max(
+                          0,
+                          p.stock -
+                            (row.quantity === '' ? 0 : Number(row.quantity) || 0),
+                        )}
                       </p>
                     )}
                   </div>
@@ -1005,11 +1049,12 @@ export function SalesPage() {
                       title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
                       className="w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
                       value={row.quantity}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const v = e.target.value
                         updateEditLine(row.key, {
-                          quantity: Number(e.target.value),
+                          quantity: v === '' ? '' : Number(v),
                         })
-                      }
+                      }}
                     />
                     <input
                       type="number"
@@ -1019,16 +1064,17 @@ export function SalesPage() {
                       title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
                       className="w-full min-w-0 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-2 py-1 text-xs read-only:cursor-default read-only:opacity-90"
                       value={row.unitPrice}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const v = e.target.value
                         updateEditLine(row.key, {
-                          unitPrice: Number(e.target.value),
+                          unitPrice: v === '' ? '' : Number(v),
                         })
-                      }
+                      }}
                     />
                   </div>
                   {p && (
                     <p className="mt-1 text-[10px] text-[var(--app-muted)]">
-                      Line: {formatMoney(saleLineTotal(row))}
+                      Line: {formatMoney(draftLineSubtotal(row))}
                     </p>
                   )}
                 </div>
@@ -1037,9 +1083,7 @@ export function SalesPage() {
           </div>
           <p className="text-sm font-medium text-[var(--app-text)]">
             Total:{' '}
-            {formatMoney(
-              editLines.reduce((a, l) => a + saleLineTotal(l), 0),
-            )}
+            {formatMoney(editLines.reduce((a, l) => a + draftLineSubtotal(l), 0))}
           </p>
           </fieldset>
           <div className="flex justify-end gap-2 pt-2">

@@ -20,14 +20,14 @@ export function ProductionPage() {
   const { showToast } = useUiFeedback()
 
   const [productId, setProductId] = useState(products[0]?.id ?? '')
-  const [quantity, setQuantity] = useState(1)
+  const [quantity, setQuantity] = useState('')
   const [date, setDate] = useState(todayISO())
   const [notes, setNotes] = useState('')
 
   const [editOpen, setEditOpen] = useState(false)
   const [editing, setEditing] = useState<ProductionEntry | null>(null)
   const [editProductId, setEditProductId] = useState('')
-  const [editQuantity, setEditQuantity] = useState(1)
+  const [editQuantity, setEditQuantity] = useState('')
   const [editDate, setEditDate] = useState(todayISO())
   const [editNotes, setEditNotes] = useState('')
   const [editError, setEditError] = useState('')
@@ -36,25 +36,26 @@ export function ProductionPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setPageError('')
-    if (!productId || quantity <= 0) {
+    const q = Number(quantity.trim())
+    if (!productId || !Number.isFinite(q) || q <= 0) {
       setPageError('Choose a product and enter a quantity greater than zero.')
       return
     }
     addProduction({
       productId,
-      quantity,
+      quantity: q,
       date: new Date(date).toISOString(),
       notes: notes.trim(),
     })
     showToast({ message: 'Production logged. Stock updated.', variant: 'success' })
     setNotes('')
-    setQuantity(1)
+    setQuantity('')
   }
 
   function openEdit(e: ProductionEntry) {
     setEditing(e)
     setEditProductId(e.productId)
-    setEditQuantity(e.quantity)
+    setEditQuantity(String(e.quantity))
     const d = new Date(e.date)
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
     setEditDate(d.toISOString().slice(0, 16))
@@ -67,9 +68,14 @@ export function ProductionPage() {
     ev.preventDefault()
     if (!editing) return
     setEditError('')
+    const q = Number(editQuantity.trim())
+    if (!Number.isFinite(q) || q <= 0) {
+      setEditError('Enter a valid quantity greater than zero.')
+      return
+    }
     const res = updateProduction(editing.id, {
       productId: editProductId,
-      quantity: editQuantity,
+      quantity: q,
       date: new Date(editDate).toISOString(),
       notes: editNotes,
     })
@@ -155,7 +161,7 @@ export function ProductionPage() {
                 title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
                 className="w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 read-only:cursor-default read-only:opacity-90"
                 value={quantity}
-                onChange={(e) => setQuantity(Number(e.target.value))}
+                onChange={(e) => setQuantity(e.target.value)}
               />
             </div>
             <div>
@@ -311,7 +317,7 @@ export function ProductionPage() {
                 title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
                 className="w-full rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm outline-none ring-coral-500/30 focus:ring-2 read-only:cursor-default read-only:opacity-90"
                 value={editQuantity}
-                onChange={(e) => setEditQuantity(Number(e.target.value))}
+                onChange={(e) => setEditQuantity(e.target.value)}
               />
             </div>
             <div>
