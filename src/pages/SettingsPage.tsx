@@ -384,41 +384,43 @@ export function SettingsPage() {
         </ul>
       </section>
 
-      <section className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-[var(--app-text)]">Data safety</h2>
-        <p className="mt-1 text-sm text-[var(--app-muted)]">
-          Keep a local backup file and manually retry cloud sync any time.
-        </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => downloadLocalBackup()}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-4 py-2.5 text-sm font-semibold text-[var(--app-text)] hover:bg-gray-100 dark:hover:bg-white/10"
-          >
-            <Download className="h-4 w-4" />
-            Download local backup (JSON)
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleRetryCloudSync()}
-            disabled={syncBusy}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-coral-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-coral-600 disabled:opacity-50"
-          >
-            {syncBusy ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            Retry cloud sync now
-          </button>
-        </div>
-        <p className="mt-3 text-xs text-[var(--app-muted)]">
-          Last cloud save:{' '}
-          <strong className="text-[var(--app-text)]">
-            {lastCloudSaveAt ? new Date(lastCloudSaveAt).toLocaleString() : 'Not saved yet'}
-          </strong>
-        </p>
-      </section>
+      {isManager && (
+        <section className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-[var(--app-text)]">Data safety</h2>
+          <p className="mt-1 text-sm text-[var(--app-muted)]">
+            Keep a local backup file and manually retry cloud sync any time.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => downloadLocalBackup()}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-4 py-2.5 text-sm font-semibold text-[var(--app-text)] hover:bg-gray-100 dark:hover:bg-white/10"
+            >
+              <Download className="h-4 w-4" />
+              Download local backup (JSON)
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleRetryCloudSync()}
+              disabled={syncBusy}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-coral-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-coral-600 disabled:opacity-50"
+            >
+              {syncBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Retry cloud sync now
+            </button>
+          </div>
+          <p className="mt-3 text-xs text-[var(--app-muted)]">
+            Last cloud save:{' '}
+            <strong className="text-[var(--app-text)]">
+              {lastCloudSaveAt ? new Date(lastCloudSaveAt).toLocaleString() : 'Not saved yet'}
+            </strong>
+          </p>
+        </section>
+      )}
     </div>
   )
 }
