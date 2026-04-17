@@ -25,13 +25,26 @@ import {
   wouldLeaveAllModulesOff,
 } from '../auth/modules'
 import {
+  normalizePermissionMap,
+  salesDefaultPermissions,
+  viewerDefaultPermissions,
+  type PermissionKey,
+  type PermissionMap,
+} from '../auth/permissions'
+import {
   fetchAdminPermissionsFromSupabase,
   persistAdminPermissionsToSupabase,
 } from '../lib/adminPermissionsRemote'
+import {
+  fetchRolePermissionsFromSupabase,
+  persistRolePermissionsToSupabase,
+} from '../lib/rolePermissionsRemote'
+import { fetchSessionRoleFromSupabase } from '../lib/userRolesRemote'
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase'
 
 const SESSION_KEY = 'ccf-session'
 const PERMISSIONS_KEY = 'ccf-admin-permissions'
+const SALES_PERMISSIONS_KEY = 'ccf-sales-permissions'
 
 export type AuthSession = {
   username: string
@@ -66,7 +79,10 @@ type AuthContextValue = {
   userEmail: string | null
   role: UserRole | null
   isManager: boolean
+  isSales: boolean
   isViewer: boolean
+  salesPermissions: PermissionMap
+  hasPermission: (permission: PermissionKey) => boolean
   adminPermissions: Record<ModuleKey, boolean>
   canAccessModule: (key: ModuleKey) => boolean
   defaultLandingPath: string
@@ -89,6 +105,11 @@ type AuthContextValue = {
     options?: { onPersist?: (error?: string) => void },
   ) => boolean
   resetAdminAccess: (preset: 'all' | 'minimal') => void
+  setSalesPermissionAccess: (
+    key: PermissionKey,
+    allowed: boolean,
+    options?: { onPersist?: (error?: string) => void },
+  ) => boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -99,7 +120,7 @@ function readDemoSession(): AuthSession | null {
     if (raw) {
       const j = JSON.parse(raw) as { username?: string; role?: UserRole }
       if (typeof j.username === 'string' && j.username) {
-        if (j.role === 'manager' || j.role === 'viewer') {
+        if (j.role === 'manager' || j.role === 'sales' || j.role === 'viewer') {
           return { username: j.username, role: j.role }
         }
         if (j.role === 'admin') {
@@ -152,11 +173,24 @@ function readPermissions(): Record<ModuleKey, boolean> {
   }
 }
 
+function readSalesPermissions(): PermissionMap {
+  const defaults = salesDefaultPermissions()
+  try {
+    const raw = localStorage.getItem(SALES_PERMISSIONS_KEY)
+    if (!raw) return defaults
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    return normalizePermissionMap(parsed, defaults)
+  } catch {
+    return defaults
+  }
+}
+
 /** Demo logins when Supabase env is not set. */
 function resolveDemoLogin(username: string, password: string): AuthSession | null {
   const u = username.trim().toLowerCase()
   if (password !== 'demo123') return null
   if (u === 'manager') return { username: 'manager', role: 'manager' }
+  if (u === 'sales') return { username: 'sales', role: 'sales' }
   if (u === 'viewer') return { username: 'viewer', role: 'viewer' }
   if (u === 'admin') {
     return { username: 'admin', role: 'viewer' }
@@ -169,6 +203,18 @@ function mapSupabaseUser(user: User | null): AuthSession | null {
   return {
     username: displayNameForUser(user),
     role: effectiveSessionRole(user),
+  }
+}
+
+async function mapSupabaseUserWithRemoteRole(
+  user: User | null,
+): Promise<AuthSession | null> {
+  if (!user) return null
+  const fallback = effectiveSessionRole(user)
+  const remote = await fetchSessionRoleFromSupabase(user.id)
+  return {
+    username: displayNameForUser(user),
+    role: remote ?? fallback,
   }
 }
 
@@ -208,6 +254,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authInitializing, setAuthInitializing] = useState(usesSupabaseAuth)
   const [permissionsReady, setPermissionsReady] = useState(!usesSupabaseAuth)
   const [adminPermissions, setAdminPermissions] = useState(readPermissions)
+  const [salesPermissions, setSalesPermissions] = useState(readSalesPermissions)
   /** After a cross-tab localStorage sync, skip visibility refetch briefly so stale DB does not overwrite. */
   const permSyncFromStorageUntilRef = useRef(0)
 
@@ -224,6 +271,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
   }, [adminPermissions, usesSupabaseAuth, session?.role])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SALES_PERMISSIONS_KEY, JSON.stringify(salesPermissions))
+    } catch {
+      /* ignore */
+    }
+  }, [salesPermissions])
 
   /** Any tab: when another tab updates `ccf-admin-permissions`, apply it here. */
   useEffect(() => {
@@ -248,11 +303,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session) {
       setAdminPermissions(readPermissions())
+      setSalesPermissions(readSalesPermissions())
       setPermissionsReady(true)
       return
     }
     if (!usesSupabaseAuth) {
       setAdminPermissions(readPermissions())
+      setSalesPermissions(readSalesPermissions())
       setPermissionsReady(true)
       return
     }
@@ -261,6 +318,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void (async () => {
       try {
         const remote = await fetchAdminPermissionsFromSupabase()
+        const salesRemote = await fetchRolePermissionsFromSupabase('sales')
         if (cancelled) return
         if (remote !== null) {
           setAdminPermissions(remote)
@@ -274,6 +332,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setAdminPermissions(readPermissions())
         }
+        if (salesRemote) {
+          setSalesPermissions(salesRemote)
+          try {
+            localStorage.setItem(SALES_PERMISSIONS_KEY, JSON.stringify(salesRemote))
+          } catch {
+            /* ignore */
+          }
+        } else {
+          setSalesPermissions(readSalesPermissions())
+        }
       } catch {
         if (!cancelled) {
           if (session.role === 'viewer') {
@@ -281,6 +349,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else {
             setAdminPermissions(readPermissions())
           }
+          setSalesPermissions(readSalesPermissions())
         }
       } finally {
         if (!cancelled) setPermissionsReady(true)
@@ -328,9 +397,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthInitializing(false)
       return
     }
-    void sb.auth.getSession().then(({ data }) => {
+    void sb.auth.getSession().then(async ({ data }) => {
       const u = data.session?.user ?? null
-      setSession(mapSupabaseUser(u))
+      const mapped = await mapSupabaseUserWithRemoteRole(u)
+      setSession(mapped)
       setUserEmail(emailFromUser(u))
       setAuthInitializing(false)
     })
@@ -338,9 +408,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = sb.auth.onAuthStateChange((_event, nextSession) => {
       const u = nextSession?.user ?? null
-      setSession(mapSupabaseUser(u))
-      setUserEmail(emailFromUser(u))
-      setAuthInitializing(false)
+      void (async () => {
+        const mapped = await mapSupabaseUserWithRemoteRole(u)
+        setSession(mapped)
+        setUserEmail(emailFromUser(u))
+        setAuthInitializing(false)
+      })()
     })
     return () => subscription.unsubscribe()
   }, [usesSupabaseAuth])
@@ -482,6 +555,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [session, usesSupabaseAuth],
   )
 
+  const setSalesPermissionAccess = useCallback(
+    (
+      key: PermissionKey,
+      allowed: boolean,
+      options?: { onPersist?: (error?: string) => void },
+    ): boolean => {
+      if (session?.role !== 'manager') return false
+      let applied = false
+      setSalesPermissions((prev) => {
+        applied = true
+        const next = { ...prev, [key]: allowed }
+        if (usesSupabaseAuth) {
+          void persistRolePermissionsToSupabase('sales', next).then((r) => {
+            if (r.error) console.warn('[role_permissions] save:', r.error)
+            options?.onPersist?.(r.error)
+          })
+        } else {
+          queueMicrotask(() => options?.onPersist?.(undefined))
+        }
+        return next
+      })
+      return applied
+    },
+    [session, usesSupabaseAuth],
+  )
+
   const resetAdminAccess = useCallback(
     (preset: 'all' | 'minimal') => {
       if (session?.role !== 'manager') return
@@ -513,19 +612,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (key: ModuleKey) => {
       if (!session) return false
       if (session.role === 'manager') return true
+      if (session.role === 'sales') {
+        const map: Partial<Record<ModuleKey, PermissionKey>> = {
+          dashboard: 'view_dashboard',
+          products: 'view_products',
+          customers: 'view_customers',
+          purchases: 'view_purchases',
+          sales: 'create_orders',
+          orders: 'create_orders',
+        }
+        const needed = map[key]
+        if (!needed) return true
+        return Boolean(salesPermissions[needed])
+      }
       return Boolean(adminPermissions[key])
     },
-    [session, adminPermissions],
+    [session, adminPermissions, salesPermissions],
+  )
+
+  const hasPermission = useCallback(
+    (permission: PermissionKey) => {
+      if (!session) return false
+      if (session.role === 'manager') return true
+      if (session.role === 'sales') return Boolean(salesPermissions[permission])
+      return Boolean(viewerDefaultPermissions()[permission])
+    },
+    [session, salesPermissions],
   )
 
   const defaultLandingPath = useMemo(() => {
     if (!session) return '/login'
     if (session.role === 'manager') return '/'
+    if (session.role === 'sales') {
+      if (salesPermissions.view_dashboard) return '/'
+      if (salesPermissions.view_customers) return '/customers'
+      if (salesPermissions.view_products) return '/products'
+      if (salesPermissions.view_purchases) return '/purchases'
+      if (salesPermissions.create_orders) return '/orders'
+      return '/settings'
+    }
     const order: ModuleKey[] = [
       'dashboard',
       'products',
       'production',
       'sales',
+      'orders',
       'purchases',
       'reports',
       'customers',
@@ -535,7 +666,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (adminPermissions[m]) return moduleToPath(m)
     }
     return moduleToPath('settings')
-  }, [session, adminPermissions])
+  }, [session, adminPermissions, salesPermissions])
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -547,7 +678,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userEmail,
       role: session?.role ?? null,
       isManager: session?.role === 'manager',
+      isSales: session?.role === 'sales',
       isViewer: session?.role === 'viewer',
+      salesPermissions,
+      hasPermission,
       adminPermissions,
       canAccessModule,
       defaultLandingPath,
@@ -557,6 +691,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       setAdminModuleAccess,
       resetAdminAccess,
+      setSalesPermissionAccess,
     }),
     [
       authInitializing,
@@ -564,6 +699,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       usesSupabaseAuth,
       session,
       userEmail,
+      salesPermissions,
+      hasPermission,
       adminPermissions,
       canAccessModule,
       defaultLandingPath,
@@ -573,6 +710,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       setAdminModuleAccess,
       resetAdminAccess,
+      setSalesPermissionAccess,
     ],
   )
 

@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { DataProvider } from './context/DataContext'
@@ -18,6 +19,15 @@ import { PurchasesPage } from './pages/PurchasesPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { SalesPage } from './pages/SalesPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { SetPasswordPage } from './pages/SetPasswordPage'
+import { UserManagementPage } from './pages/UserManagementPage'
+
+function ManagerOnly({ children }: { children: ReactNode }) {
+  const { isAuthenticated, isManager, defaultLandingPath } = useAuth()
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (!isManager) return <Navigate to={defaultLandingPath} replace />
+  return <>{children}</>
+}
 
 function AuthedCatchAll() {
   const {
@@ -50,6 +60,7 @@ export default function App() {
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/confirmed" element={<EmailConfirmedPage />} />
+                <Route path="/set-password" element={<SetPasswordPage />} />
                 <Route
                   element={
                     <ProtectedRoute>
@@ -119,6 +130,14 @@ export default function App() {
                       <RequireModule module="customers">
                         <CustomersPage />
                       </RequireModule>
+                    }
+                  />
+                  <Route
+                    path="/users"
+                    element={
+                      <ManagerOnly>
+                        <UserManagementPage />
+                      </ManagerOnly>
                     }
                   />
                   <Route

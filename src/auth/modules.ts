@@ -1,4 +1,4 @@
-export type UserRole = 'manager' | 'viewer'
+export type UserRole = 'manager' | 'sales' | 'viewer'
 
 export const MODULE_KEYS = [
   'dashboard',

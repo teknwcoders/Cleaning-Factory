@@ -18,6 +18,17 @@ export type AppData = {
   notifications: AppNotification[]
 }
 
+export function hasAnyAppData(data: AppData): boolean {
+  return (
+    data.products.length > 0 ||
+    data.customers.length > 0 ||
+    data.sales.length > 0 ||
+    data.purchases.length > 0 ||
+    data.production.length > 0 ||
+    data.notifications.length > 0
+  )
+}
+
 function num(v: unknown): number {
   return typeof v === 'number' ? v : Number(v)
 }
@@ -133,32 +144,57 @@ export async function fetchFullState(sb: SupabaseClient): Promise<AppData> {
   }
 }
 
-/** Replace all domain rows with current app state (debounced from UI). */
+async function deleteMissingById(
+  sb: SupabaseClient,
+  table: string,
+  desiredIds: string[],
+): Promise<{ error?: string }> {
+  const { data, error } = await sb.from(table).select('id')
+  if (error) return { error: `${table} fetch ids: ${error.message}` }
+  const existingIds = (data ?? []).map((r) => String((r as { id: string }).id))
+  const toDelete = existingIds.filter((id) => !desiredIds.includes(id))
+  if (!toDelete.length) return {}
+  const { error: delErr } = await sb.from(table).delete().in('id', toDelete)
+  if (delErr) return { error: `${table} delete missing: ${delErr.message}` }
+  return {}
+}
+
+/** Safely sync domain rows with current app state (debounced from UI). */
 export async function syncAppDataToTables(
   sb: SupabaseClient,
   data: AppData,
 ): Promise<{ error?: string }> {
-  const { error: rpcErr } = await sb.rpc('truncate_factory_domain')
-  if (rpcErr) {
-    return {
-      error: `truncate_factory_domain: ${rpcErr.message}. Run supabase/migrations/004_truncate_factory_domain.sql`,
-    }
+  {
+    const r = await deleteMissingById(
+      sb,
+      'customers',
+      data.customers.map((x) => x.id),
+    )
+    if (r.error) return { error: r.error }
   }
-
   if (data.customers.length) {
-    const { error } = await sb.from('customers').insert(
+    const { error } = await sb.from('customers').upsert(
       data.customers.map((c) => ({
         id: c.id,
         name: c.name,
         phone: c.phone,
         location: c.location,
       })),
+      { onConflict: 'id' },
     )
     if (error) return { error: `customers: ${error.message}` }
   }
 
+  {
+    const r = await deleteMissingById(
+      sb,
+      'products',
+      data.products.map((x) => x.id),
+    )
+    if (r.error) return { error: r.error }
+  }
   if (data.products.length) {
-    const { error } = await sb.from('products').insert(
+    const { error } = await sb.from('products').upsert(
       data.products.map((p) => ({
         id: p.id,
         name: p.name,
@@ -166,17 +202,86 @@ export async function syncAppDataToTables(
         price: p.price,
         stock: p.stock,
       })),
+      { onConflict: 'id' },
     )
     if (error) return { error: `products: ${error.message}` }
   }
 
+  {
+    const r = await deleteMissingById(
+      sb,
+      'purchases',
+      data.purchases.map((x) => x.id),
+    )
+    if (r.error) return { error: r.error }
+  }
+  if (data.purchases.length) {
+    const { error } = await sb.from('purchases').upsert(
+      data.purchases.map((p) => ({
+        id: p.id,
+        supplier: p.supplier,
+        product_id: p.productId,
+        quantity: p.quantity,
+        cost: p.cost,
+        purchase_date: p.date,
+      })),
+      { onConflict: 'id' },
+    )
+    if (error) return { error: `purchases: ${error.message}` }
+  }
+
+  {
+    const r = await deleteMissingById(
+      sb,
+      'production',
+      data.production.map((x) => x.id),
+    )
+    if (r.error) return { error: r.error }
+  }
+  if (data.production.length) {
+    const { error } = await sb.from('production').upsert(
+      data.production.map((e) => ({
+        id: e.id,
+        product_id: e.productId,
+        quantity: e.quantity,
+        production_date: e.date,
+        notes: e.notes,
+      })),
+      { onConflict: 'id' },
+    )
+    if (error) return { error: `production: ${error.message}` }
+  }
+
+  {
+    const desiredSaleIds = data.sales.map((s) => s.id)
+    const { data: existingSales, error: salesFetchErr } = await sb
+      .from('sales')
+      .select('id')
+    if (salesFetchErr) return { error: `sales fetch ids: ${salesFetchErr.message}` }
+    const existingSaleIds = (existingSales ?? []).map((r) =>
+      String((r as { id: string }).id),
+    )
+    const toDeleteSales = existingSaleIds.filter((id) => !desiredSaleIds.includes(id))
+    if (toDeleteSales.length) {
+      const { error: dl1 } = await sb.from('sale_lines').delete().in('sale_id', toDeleteSales)
+      if (dl1) return { error: `sale_lines delete missing: ${dl1.message}` }
+      const { error: dl2 } = await sb.from('sales').delete().in('id', toDeleteSales)
+      if (dl2) return { error: `sales delete missing: ${dl2.message}` }
+    }
+  }
+
   for (const s of data.sales) {
-    const { error: se } = await sb.from('sales').insert({
-      id: s.id,
-      customer_id: s.customerId,
-      sale_date: s.date,
-    })
+    const { error: se } = await sb.from('sales').upsert(
+      {
+        id: s.id,
+        customer_id: s.customerId,
+        sale_date: s.date,
+      },
+      { onConflict: 'id' },
+    )
     if (se) return { error: `sales: ${se.message}` }
+    const { error: clearLinesErr } = await sb.from('sale_lines').delete().eq('sale_id', s.id)
+    if (clearLinesErr) return { error: `sale_lines clear: ${clearLinesErr.message}` }
     if (s.lines.length) {
       const { error: le } = await sb.from('sale_lines').insert(
         s.lines.map((l) => ({
@@ -190,41 +295,23 @@ export async function syncAppDataToTables(
     }
   }
 
-  if (data.purchases.length) {
-    const { error } = await sb.from('purchases').insert(
-      data.purchases.map((p) => ({
-        id: p.id,
-        supplier: p.supplier,
-        product_id: p.productId,
-        quantity: p.quantity,
-        cost: p.cost,
-        purchase_date: p.date,
-      })),
+  {
+    const r = await deleteMissingById(
+      sb,
+      'app_notifications',
+      data.notifications.map((x) => x.id),
     )
-    if (error) return { error: `purchases: ${error.message}` }
+    if (r.error) return { error: r.error }
   }
-
-  if (data.production.length) {
-    const { error } = await sb.from('production').insert(
-      data.production.map((e) => ({
-        id: e.id,
-        product_id: e.productId,
-        quantity: e.quantity,
-        production_date: e.date,
-        notes: e.notes,
-      })),
-    )
-    if (error) return { error: `production: ${error.message}` }
-  }
-
   if (data.notifications.length) {
-    const { error } = await sb.from('app_notifications').insert(
+    const { error } = await sb.from('app_notifications').upsert(
       data.notifications.map((n) => ({
         id: n.id,
         message: n.message,
         read: n.read,
         created_at: n.createdAt,
       })),
+      { onConflict: 'id' },
     )
     if (error) {
       return {

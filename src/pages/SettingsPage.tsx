@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Moon, Monitor, Shield, Sun } from 'lucide-react'
+import { Download, Loader2, Moon, Monitor, RefreshCw, Shield, Sun } from 'lucide-react'
 import type { ThemeMode } from '../context/ThemeContext'
 import { useTheme } from '../context/ThemeContext'
 import {
@@ -9,7 +9,14 @@ import {
   type ModuleKey,
   wouldLeaveAllModulesOff,
 } from '../auth/modules'
+import {
+  PERMISSION_DESCRIPTIONS,
+  PERMISSION_KEYS,
+  PERMISSION_LABELS,
+  type PermissionKey,
+} from '../auth/permissions'
 import { useAuth } from '../context/AuthContext'
+import { useData } from '../context/DataContext'
 import { useUiFeedback } from '../context/UiFeedbackContext'
 import { isSupabaseConfigured } from '../lib/supabase'
 
@@ -21,6 +28,7 @@ const modes: { id: ThemeMode; label: string; icon: typeof Sun }[] = [
 
 function roleLabel(role: string | null): string {
   if (role === 'manager') return 'Manager'
+  if (role === 'sales') return 'Sales'
   if (role === 'viewer') return 'Viewer'
   return '—'
 }
@@ -32,11 +40,16 @@ export function SettingsPage() {
     role,
     isManager,
     adminPermissions,
+    salesPermissions,
     setAdminModuleAccess,
+    setSalesPermissionAccess,
     resetAdminAccess,
   } = useAuth()
   const { showToast } = useUiFeedback()
+  const { lastCloudSaveAt, retryCloudSyncNow, downloadLocalBackup, cloudSync } =
+    useData()
   const { mode, setMode, resolved } = useTheme()
+  const syncBusy = cloudSync === 'syncing'
 
   function toggleViewerModule(key: ModuleKey, on: boolean) {
     if (wouldLeaveAllModulesOff(adminPermissions, key, on)) {
@@ -62,6 +75,33 @@ export function SettingsPage() {
       message: `${MODULE_LABELS[key]} ${on ? 'enabled' : 'disabled'} for viewers.`,
       variant: 'info',
     })
+  }
+
+  function toggleSalesPermission(key: PermissionKey, on: boolean) {
+    const applied = setSalesPermissionAccess(key, on, {
+      onPersist: (err) => {
+        if (err) {
+          showToast({
+            message: `Could not save Sales permission to server: ${err}`,
+            variant: 'error',
+          })
+        }
+      },
+    })
+    if (!applied) return
+    showToast({
+      message: `${PERMISSION_LABELS[key]} ${on ? 'enabled' : 'disabled'} for Sales role.`,
+      variant: 'info',
+    })
+  }
+
+  async function handleRetryCloudSync() {
+    const res = await retryCloudSyncNow()
+    if (!res.ok) {
+      showToast({ message: `Cloud sync failed: ${res.error}`, variant: 'error' })
+      return
+    }
+    showToast({ message: 'Cloud sync completed.', variant: 'success' })
   }
 
   return (
@@ -93,6 +133,8 @@ export function SettingsPage() {
                 className={
                   role === 'manager'
                     ? 'rounded-full bg-coral-100 px-2.5 py-0.5 text-xs font-semibold text-coral-800 dark:bg-coral-950/50 dark:text-coral-200'
+                    : role === 'sales'
+                      ? 'rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-200'
                     : 'rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-900 dark:bg-sky-950/50 dark:text-sky-200'
                 }
               >
@@ -239,6 +281,68 @@ export function SettingsPage() {
         </section>
       )}
 
+      {isManager && (
+        <section className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-6 shadow-sm">
+          <div className="mb-2 flex items-start gap-3">
+            <div className="rounded-xl bg-coral-100 p-2 text-coral-600 dark:bg-coral-950/50 dark:text-coral-300">
+              <Shield className="h-5 w-5" aria-hidden />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-[var(--app-text)]">
+                Sales role permissions
+              </h2>
+              <p className="mt-1 text-sm text-[var(--app-muted)]">
+                Configure what users in the <strong className="text-[var(--app-text)]">Sales</strong>{' '}
+                role can do. These controls are permission-based and do not rely on hardcoded role checks.
+              </p>
+            </div>
+          </div>
+          <ul className="space-y-2">
+            {PERMISSION_KEYS.map((key) => {
+              const on = salesPermissions[key]
+              return (
+                <li
+                  key={key}
+                  className="flex items-start gap-3 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-4 py-3"
+                >
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={on}
+                    aria-label={`${PERMISSION_LABELS[key]} for sales role`}
+                    id={`sales-perm-${key}`}
+                    onClick={() => toggleSalesPermission(key, !on)}
+                    className={clsx(
+                      'relative mt-0.5 inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coral-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-bg)] active:scale-[0.97]',
+                      on ? 'bg-coral-500' : 'bg-gray-300 dark:bg-gray-600',
+                    )}
+                  >
+                    <span
+                      className={clsx(
+                        'pointer-events-none m-0.5 block h-5 w-5 rounded-full bg-white shadow transition-transform',
+                        on ? 'translate-x-6' : 'translate-x-0.5',
+                      )}
+                      aria-hidden
+                    />
+                  </button>
+                  <label
+                    htmlFor={`sales-perm-${key}`}
+                    className="min-w-0 flex-1 cursor-pointer select-none"
+                  >
+                    <span className="font-medium text-[var(--app-text)]">
+                      {PERMISSION_LABELS[key]}
+                    </span>
+                    <p className="text-xs text-[var(--app-muted)]">
+                      {PERMISSION_DESCRIPTIONS[key]}
+                    </p>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+
       <section className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-[var(--app-text)]">Appearance</h2>
         <p className="mt-1 text-sm text-[var(--app-muted)]">
@@ -278,6 +382,42 @@ export function SettingsPage() {
           <li>Low-stock threshold is fixed in code for this demo.</li>
           <li>Notifications fire on low or zero stock after sales.</li>
         </ul>
+      </section>
+
+      <section className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-[var(--app-text)]">Data safety</h2>
+        <p className="mt-1 text-sm text-[var(--app-muted)]">
+          Keep a local backup file and manually retry cloud sync any time.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => downloadLocalBackup()}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)] px-4 py-2.5 text-sm font-semibold text-[var(--app-text)] hover:bg-gray-100 dark:hover:bg-white/10"
+          >
+            <Download className="h-4 w-4" />
+            Download local backup (JSON)
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleRetryCloudSync()}
+            disabled={syncBusy}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-coral-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-coral-600 disabled:opacity-50"
+          >
+            {syncBusy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Retry cloud sync now
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-[var(--app-muted)]">
+          Last cloud save:{' '}
+          <strong className="text-[var(--app-text)]">
+            {lastCloudSaveAt ? new Date(lastCloudSaveAt).toLocaleString() : 'Not saved yet'}
+          </strong>
+        </p>
       </section>
     </div>
   )

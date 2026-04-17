@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Modal } from '../components/Modal'
+import { useAuth } from '../context/AuthContext'
 import { READ_ONLY_CONTROL_TITLE, useData } from '../context/DataContext'
 import { useUiFeedback } from '../context/UiFeedbackContext'
 import type { Order, OrderItem } from '../types'
@@ -47,6 +48,9 @@ export function OrdersPage() {
   const { customers, products, orders, addOrder, updateOrder, deleteOrder, readOnly, readOnlyButtonProps } =
     useData()
   const { showToast } = useUiFeedback()
+  const { hasPermission } = useAuth()
+  const canCreateOrders = hasPermission('create_orders')
+  const canEditOrders = hasPermission('edit_orders')
 
   const [customerId, setCustomerId] = useState(customers[0]?.id ?? '')
   const [customerSearch, setCustomerSearch] = useState('')
@@ -499,14 +503,16 @@ export function OrdersPage() {
               Total quantity: {totalQtyPreview} | Total price: {formatMoney(totalPricePreview)}
             </p>
 
-            <button
-              type="submit"
-              {...readOnlyButtonProps}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-coral-500 py-2.5 text-sm font-semibold text-white hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500"
-            >
-              <Plus className="h-4 w-4" />
-              Save order
-            </button>
+            {canCreateOrders && (
+              <button
+                type="submit"
+                {...readOnlyButtonProps}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-coral-500 py-2.5 text-sm font-semibold text-white hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500"
+              >
+                <Plus className="h-4 w-4" />
+                Save order
+              </button>
+            )}
           </fieldset>
         </form>
 
@@ -623,28 +629,32 @@ export function OrdersPage() {
                   </p>
                 </div>
                 <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openEdit(order)}
-                    title={readOnly ? 'View details (read-only)' : undefined}
-                    className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2.5 py-1.5 text-xs text-[var(--app-muted)] hover:border-[var(--app-border)] hover:bg-[var(--app-bg)]"
-                  >
-                    <Pencil className="h-4 w-4" />
-                    {readOnly ? 'View' : 'Edit'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm(`Delete order for "${order.customerName}"?`)) {
-                        deleteOrder(order.id)
-                      }
-                    }}
-                    {...readOnlyButtonProps}
-                    className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2.5 py-1.5 text-xs text-red-600 hover:border-red-200 hover:bg-red-50 disabled:opacity-40 dark:hover:bg-red-950/30"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </button>
+                  {canEditOrders && (
+                    <button
+                      type="button"
+                      onClick={() => openEdit(order)}
+                      title={readOnly ? 'View details (read-only)' : undefined}
+                      className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2.5 py-1.5 text-xs text-[var(--app-muted)] hover:border-[var(--app-border)] hover:bg-[var(--app-bg)]"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      {readOnly ? 'View' : 'Edit'}
+                    </button>
+                  )}
+                  {canEditOrders && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`Delete order for "${order.customerName}"?`)) {
+                          deleteOrder(order.id)
+                        }
+                      }}
+                      {...readOnlyButtonProps}
+                      className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2.5 py-1.5 text-xs text-red-600 hover:border-red-200 hover:bg-red-50 disabled:opacity-40 dark:hover:bg-red-950/30"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

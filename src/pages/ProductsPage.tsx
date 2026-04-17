@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from 'react'
 import { Modal } from '../components/Modal'
 import { StockBadge } from '../components/StockBadge'
 import { READ_ONLY_CONTROL_TITLE, useData } from '../context/DataContext'
+import { useAuth } from '../context/AuthContext'
 import { useUiFeedback } from '../context/UiFeedbackContext'
 import type { Product } from '../types'
 import { stockStatus } from '../types'
@@ -25,6 +26,8 @@ export function ProductsPage() {
     readOnlyButtonProps,
   } = useData()
   const { showToast } = useUiFeedback()
+  const { hasPermission } = useAuth()
+  const canManageProducts = hasPermission('manage_products')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('')
@@ -144,15 +147,17 @@ export function ProductsPage() {
             ))}
           </select>
         </div>
-        <button
-          type="button"
-          onClick={openAdd}
-          {...readOnlyButtonProps}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-coral-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-coral-500/25 transition hover:bg-coral-600 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500"
-        >
-          <Plus className="h-4 w-4" />
-          Add product
-        </button>
+        {canManageProducts && (
+          <button
+            type="button"
+            onClick={openAdd}
+            {...readOnlyButtonProps}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-coral-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-coral-500/25 transition hover:bg-coral-600 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500"
+          >
+            <Plus className="h-4 w-4" />
+            Add product
+          </button>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] shadow-sm">
@@ -199,22 +204,24 @@ export function ProductsPage() {
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (
-                        confirm(
-                          `Delete “${p.name}”? This cannot be undone from the UI.`,
+                  {canManageProducts && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          confirm(
+                            `Delete “${p.name}”? This cannot be undone from the UI.`,
+                          )
                         )
-                      )
-                        deleteProduct(p.id)
-                    }}
-                    {...readOnlyButtonProps}
-                    className="inline-flex rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-950/30"
-                    aria-label="Delete"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                          deleteProduct(p.id)
+                      }}
+                      {...readOnlyButtonProps}
+                      className="inline-flex rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-950/30"
+                      aria-label="Delete"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

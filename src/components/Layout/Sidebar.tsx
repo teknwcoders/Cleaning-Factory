@@ -14,13 +14,21 @@ import {
   Truck,
   Users,
   X,
+  type LucideIcon,
 } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { pathToModule } from '../../auth/modules'
 import { useAuth } from '../../context/AuthContext'
 
-const items = [
+type SidebarItem = {
+  to: string
+  label: string
+  icon: LucideIcon
+  managerOnly?: boolean
+}
+
+const items: SidebarItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/products', label: 'Products', icon: Package },
   { to: '/production', label: 'Production', icon: Factory },
@@ -29,6 +37,7 @@ const items = [
   { to: '/purchases', label: 'Purchases', icon: Truck },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
   { to: '/customers', label: 'Customers', icon: Users },
+  { to: '/users', label: 'Users', icon: Users, managerOnly: true },
   { to: '/settings', label: 'Settings', icon: Settings },
 ] as const
 
@@ -48,7 +57,8 @@ export function Sidebar({ open, onClose }: Props) {
   } = useAuth()
   const [signingOut, setSigningOut] = useState(false)
 
-  const visibleItems = items.filter(({ to }) => {
+  const visibleItems = items.filter(({ to, managerOnly }) => {
+    if (managerOnly && role !== 'manager') return false
     const mod = pathToModule(to)
     if (!mod) return true
     return canAccessModule(mod)
@@ -140,12 +150,14 @@ export function Sidebar({ open, onClose }: Props) {
               className={
                 role === 'manager'
                   ? 'mt-1 inline-block rounded-full bg-coral-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-coral-800 dark:text-coral-200'
+                  : role === 'sales'
+                    ? 'mt-1 inline-block rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200'
                   : role === 'viewer'
                     ? 'mt-1 inline-block rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200'
                     : 'mt-1 inline-block rounded-full bg-[var(--app-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--app-muted)]'
               }
             >
-              {role === 'manager' ? 'Manager' : role === 'viewer' ? 'Viewer' : '—'}
+              {role === 'manager' ? 'Manager' : role === 'sales' ? 'Sales' : role === 'viewer' ? 'Viewer' : '—'}
             </span>
           </div>
           <button

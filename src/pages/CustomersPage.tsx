@@ -28,7 +28,8 @@ export function CustomersPage() {
     readOnlyButtonProps,
   } = useData()
   const { showToast } = useUiFeedback()
-  const { canAccessModule } = useAuth()
+  const { canAccessModule, hasPermission } = useAuth()
+  const canManageCustomers = hasPermission('add_customers')
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -266,14 +267,16 @@ export function CustomersPage() {
               />
             </div>
           </fieldset>
-          <button
-            type="submit"
-            {...readOnlyButtonProps}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-coral-500 py-2.5 text-sm font-semibold text-white hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500"
-          >
-            <Plus className="h-4 w-4" />
-            Save customer
-          </button>
+          {canManageCustomers && (
+            <button
+              type="submit"
+              {...readOnlyButtonProps}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-coral-500 py-2.5 text-sm font-semibold text-white hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500"
+            >
+              <Plus className="h-4 w-4" />
+              Save customer
+            </button>
+          )}
         </form>
 
         <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] shadow-sm lg:col-span-2">
@@ -467,14 +470,16 @@ export function CustomersPage() {
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(c)}
-                        {...readOnlyButtonProps}
-                        className="inline-flex rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-950/30"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {canManageCustomers && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(c)}
+                          {...readOnlyButtonProps}
+                          className="inline-flex rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-950/30"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div className="ml-7 grid grid-cols-2 gap-2 text-sm">
@@ -559,15 +564,17 @@ export function CustomersPage() {
                             <Pencil className="h-4 w-4" />
                             <span>{readOnly ? 'View' : 'Edit'}</span>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(c)}
-                            {...readOnlyButtonProps}
-                            className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2 py-1.5 text-xs font-medium text-red-600 hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:border-red-900 dark:hover:bg-red-950/30"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span>Delete</span>
-                          </button>
+                          {canManageCustomers && (
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(c)}
+                              {...readOnlyButtonProps}
+                              className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2 py-1.5 text-xs font-medium text-red-600 hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:border-red-900 dark:hover:bg-red-950/30"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span>Delete</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

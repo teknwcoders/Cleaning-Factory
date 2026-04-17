@@ -26,11 +26,13 @@ import { useUiFeedback } from './UiFeedbackContext'
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase'
 import {
   fetchFullState,
+  hasAnyAppData,
   syncAppDataToTables,
   type AppData,
 } from '../lib/supabaseRepository'
 
 const STORAGE_KEY = 'ccf-data-v1'
+const LAST_CLOUD_SAVE_KEY = 'ccf-last-cloud-save-at'
 
 /** Use as `title` / spread onto write actions when `readOnly` is true. */
 export const READ_ONLY_CONTROL_TITLE =
@@ -298,8 +300,11 @@ type DataContextValue = AppData & {
   /** Debounced write to Supabase tables. */
   cloudSync: CloudSyncState
   cloudSyncError: string | null
+  lastCloudSaveAt: string | null
   retryRemoteBootstrap: () => void
   dismissCloudSyncMessage: () => void
+  retryCloudSyncNow: () => Promise<{ ok: true } | { ok: false; error: string }>
+  downloadLocalBackup: () => void
   /** True when signed in as viewer — UI should hide writes; mutations no-op. */
   readOnly: boolean
   /** Spread onto buttons that perform writes (disabled + tooltip when viewer). */
@@ -354,7 +359,7 @@ type DataContextValue = AppData & {
 const DataContext = createContext<DataContextValue | null>(null)
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const { role: authRole } = useAuth()
+  const { role: authRole, hasPermission } = useAuth()
   const readOnly = authRole === 'viewer'
   const readOnlyButtonProps = useMemo<ReadOnlyButtonProps>(
     () =>
@@ -372,6 +377,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     })
     return false
   }, [readOnly, showToast])
+  const permissionGuard = useCallback(
+    (ok: boolean, message = 'You do not have permission for this action.') => {
+      if (ok) return true
+      showToast({ message, variant: 'error' })
+      return false
+    },
+    [showToast],
+  )
 
   const [data, setData] = useState<AppData>(load)
   const [orders, setOrders] = useState<Order[]>(() => {
@@ -394,6 +407,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [bootstrapNonce, setBootstrapNonce] = useState(0)
   const [cloudSync, setCloudSync] = useState<CloudSyncState>('idle')
   const [cloudSyncError, setCloudSyncError] = useState<string | null>(null)
+  const [lastCloudSaveAt, setLastCloudSaveAt] = useState<string | null>(() => {
+    try {
+      const v = localStorage.getItem(LAST_CLOUD_SAVE_KEY)
+      return v && v.trim() ? v : null
+    } catch {
+      return null
+    }
+  })
 
   const retryRemoteBootstrap = useCallback(() => {
     if (!getSupabase()) return
@@ -407,6 +428,60 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setCloudSync('idle')
     setCloudSyncError(null)
   }, [])
+
+  const markCloudSavedNow = useCallback(() => {
+    const now = new Date().toISOString()
+    setLastCloudSaveAt(now)
+    try {
+      localStorage.setItem(LAST_CLOUD_SAVE_KEY, now)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const retryCloudSyncNow = useCallback(async (): Promise<
+    { ok: true } | { ok: false; error: string }
+  > => {
+    const sb = getSupabase()
+    if (!sb) return { ok: false, error: 'Supabase is not configured.' }
+    if (!remoteHydratedRef.current) {
+      return { ok: false, error: 'Cloud is still loading. Try again in a moment.' }
+    }
+    if (readOnly) return { ok: false, error: 'View only users cannot sync.' }
+    setCloudSync('syncing')
+    setCloudSyncError(null)
+    const r = await syncAppDataToTables(sb, data)
+    if (r.error) {
+      setCloudSync('error')
+      setCloudSyncError(r.error)
+      return { ok: false, error: r.error }
+    }
+    markCloudSavedNow()
+    setCloudSync('saved')
+    setCloudSyncError(null)
+    window.setTimeout(() => {
+      setCloudSync((s) => (s === 'saved' ? 'idle' : s))
+    }, 2200)
+    return { ok: true }
+  }, [data, markCloudSavedNow, readOnly])
+
+  const downloadLocalBackup = useCallback(() => {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      data,
+      orders,
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json;charset=utf-8',
+    })
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `cleaning-backup-${stamp}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [data, orders])
 
   useEffect(() => {
     const sb = getSupabase()
@@ -422,8 +497,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
       try {
         const remote = await fetchFullState(sb)
         if (cancelled) return
-        setData(remote)
-        setRemoteBootstrapError(null)
+        if (hasAnyAppData(remote) || (!hasAnyAppData(data) && orders.length === 0)) {
+          setData(remote)
+          setRemoteBootstrapError(null)
+        } else {
+          setRemoteBootstrapError(
+            'Remote data came back empty. Kept your local data to prevent accidental data loss.',
+          )
+        }
         setRemoteBootstrap('ready')
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
@@ -467,6 +548,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           setCloudSync('error')
           setCloudSyncError(r.error)
         } else {
+          markCloudSavedNow()
           setCloudSync('saved')
           setCloudSyncError(null)
           window.setTimeout(() => {
@@ -476,7 +558,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       })()
     }, 650)
     return () => window.clearTimeout(t)
-  }, [data, orders, readOnly])
+  }, [data, markCloudSavedNow, orders, readOnly])
 
   const pushNotification = useCallback((message: string) => {
     if (!readOnlyGuard()) return
@@ -497,6 +579,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addOrder = useCallback(
     (input: Omit<Order, 'id'>): { ok: true } | { ok: false; error: string } => {
       if (!readOnlyGuard()) return { ok: false, error: 'View only.' }
+      if (
+        authRole === 'sales' &&
+        !permissionGuard(hasPermission('create_orders'))
+      ) {
+        return { ok: false, error: 'Missing permission.' }
+      }
       const cleanName = input.customerName.trim()
       if (!cleanName) return { ok: false, error: 'Customer name is required.' }
       const normalizedItems = input.items
@@ -525,7 +613,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ])
       return { ok: true }
     },
-    [readOnlyGuard],
+    [authRole, hasPermission, permissionGuard, readOnlyGuard],
   )
 
   const updateOrder = useCallback(
@@ -534,6 +622,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       input: Omit<Order, 'id'>,
     ): { ok: true } | { ok: false; error: string } => {
       if (!readOnlyGuard()) return { ok: false, error: 'View only.' }
+      if (
+        authRole === 'sales' &&
+        !permissionGuard(hasPermission('edit_orders'))
+      ) {
+        return { ok: false, error: 'Missing permission.' }
+      }
       const cleanName = input.customerName.trim()
       if (!cleanName) return { ok: false, error: 'Customer name is required.' }
       const normalizedItems = input.items
@@ -567,62 +661,89 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (!found) return { ok: false, error: 'Order not found.' }
       return { ok: true }
     },
-    [readOnlyGuard],
+    [authRole, hasPermission, permissionGuard, readOnlyGuard],
   )
 
   const deleteOrder = useCallback(
     (orderId: string) => {
       if (!readOnlyGuard()) return
+      if (authRole === 'sales' && !permissionGuard(hasPermission('edit_orders')))
+        return
       setOrders((prev) => prev.filter((order) => order.id !== orderId))
     },
-    [readOnlyGuard],
+    [authRole, hasPermission, permissionGuard, readOnlyGuard],
   )
 
   const addProduct = useCallback((p: Omit<Product, 'id'>) => {
     if (!readOnlyGuard()) return
+    if (
+      authRole === 'sales' &&
+      !permissionGuard(hasPermission('manage_products'))
+    )
+      return
     setData((d) => ({
       ...d,
       products: [...d.products, { ...p, id: id() }],
     }))
-  }, [readOnlyGuard])
+  }, [authRole, hasPermission, permissionGuard, readOnlyGuard])
 
   const updateProduct = useCallback((p: Product) => {
     if (!readOnlyGuard()) return
+    if (
+      authRole === 'sales' &&
+      !permissionGuard(hasPermission('manage_products'))
+    )
+      return
     setData((d) => ({
       ...d,
       products: d.products.map((x) => (x.id === p.id ? p : x)),
     }))
-  }, [readOnlyGuard])
+  }, [authRole, hasPermission, permissionGuard, readOnlyGuard])
 
   const deleteProduct = useCallback((productId: string) => {
     if (!readOnlyGuard()) return
+    if (
+      authRole === 'sales' &&
+      !permissionGuard(hasPermission('manage_products'))
+    )
+      return
     setData((d) => ({
       ...d,
       products: d.products.filter((x) => x.id !== productId),
     }))
-  }, [readOnlyGuard])
+  }, [authRole, hasPermission, permissionGuard, readOnlyGuard])
 
   const addCustomer = useCallback((c: Omit<Customer, 'id'>) => {
     if (!readOnlyGuard()) return
+    if (authRole === 'sales' && !permissionGuard(hasPermission('add_customers')))
+      return
     setData((d) => ({
       ...d,
       customers: [...d.customers, { ...c, id: id() }],
     }))
-  }, [readOnlyGuard])
+  }, [authRole, hasPermission, permissionGuard, readOnlyGuard])
 
   const updateCustomer = useCallback((c: Customer) => {
     if (!readOnlyGuard()) return
+    if (authRole === 'sales' && !permissionGuard(hasPermission('add_customers')))
+      return
     setData((d) => ({
       ...d,
       customers: d.customers.map((x) => (x.id === c.id ? c : x)),
     }))
-  }, [readOnlyGuard])
+  }, [authRole, hasPermission, permissionGuard, readOnlyGuard])
 
   const deleteCustomer = useCallback(
     (
       customerId: string,
     ): { ok: true } | { ok: false; error: string } => {
       if (!readOnlyGuard()) return { ok: false, error: 'View only.' }
+      if (
+        authRole === 'sales' &&
+        !permissionGuard(hasPermission('add_customers'))
+      ) {
+        return { ok: false, error: 'Missing permission.' }
+      }
       let err: string | null = null
       setData((d) => {
         const hasSales = d.sales.some((s) => s.customerId === customerId)
@@ -639,7 +760,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (err) return { ok: false, error: err }
       return { ok: true }
     },
-    [readOnlyGuard],
+    [authRole, hasPermission, permissionGuard, readOnlyGuard],
   )
 
   const addSale = useCallback(
@@ -649,6 +770,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       lines: SaleLine[]
     }): { ok: true } | { ok: false; error: string } => {
       if (!readOnlyGuard()) return { ok: false, error: 'View only.' }
+      if (
+        authRole === 'sales' &&
+        !permissionGuard(hasPermission('create_orders'))
+      ) {
+        return { ok: false, error: 'Missing permission.' }
+      }
       let err: string | null = null
       setData((d) => {
         if (!input.lines.length) {
@@ -656,7 +783,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           return d
         }
         const sub = trySubtractLines(d.products, input.lines)
-        if (!sub.ok) {
+        if ('error' in sub) {
           err = sub.error
           return d
         }
@@ -681,7 +808,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (err) return { ok: false, error: err }
       return { ok: true }
     },
-    [readOnlyGuard],
+    [authRole, hasPermission, permissionGuard, readOnlyGuard],
   )
 
   const updateSale = useCallback(
@@ -690,6 +817,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       input: { customerId: string; date: string; lines: SaleLine[] },
     ): { ok: true } | { ok: false; error: string } => {
       if (!readOnlyGuard()) return { ok: false, error: 'View only.' }
+      if (
+        authRole === 'sales' &&
+        !permissionGuard(hasPermission('edit_orders'))
+      ) {
+        return { ok: false, error: 'Missing permission.' }
+      }
       let err: string | null = null
       setData((d) => {
         const sale = d.sales.find((x) => x.id === saleId)
@@ -703,7 +836,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
         const restored = restoreLines(d.products, sale.lines)
         const sub = trySubtractLines(restored, input.lines)
-        if (!sub.ok) {
+        if ('error' in sub) {
           err = sub.error
           return d
         }
@@ -728,11 +861,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (err) return { ok: false, error: err }
       return { ok: true }
     },
-    [readOnlyGuard],
+    [authRole, hasPermission, permissionGuard, readOnlyGuard],
   )
 
   const deleteSale = useCallback((saleId: string) => {
     if (!readOnlyGuard()) return
+    if (authRole === 'sales' && !permissionGuard(hasPermission('edit_orders')))
+      return
     setData((d) => {
       const sale = d.sales.find((x) => x.id === saleId)
       if (!sale) return d
@@ -742,7 +877,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         sales: d.sales.filter((x) => x.id !== saleId),
       }
     })
-  }, [readOnlyGuard])
+  }, [authRole, hasPermission, permissionGuard, readOnlyGuard])
 
   const addPurchase = useCallback((input: Omit<Purchase, 'id'>) => {
     if (!readOnlyGuard()) return
@@ -777,13 +912,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
         let products = cloneProducts(d.products)
         const r1 = applyStockDelta(products, old.productId, -old.quantity)
-        if (!r1.ok) {
+        if ('error' in r1) {
           err = r1.error
           return d
         }
         products = r1.products
         const r2 = applyStockDelta(products, input.productId, input.quantity)
-        if (!r2.ok) {
+        if ('error' in r2) {
           err = r2.error
           return d
         }
@@ -820,7 +955,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           old.productId,
           -old.quantity,
         )
-        if (!r.ok) {
+        if ('error' in r) {
           err = r.error
           return d
         }
@@ -873,13 +1008,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
         let products = cloneProducts(d.products)
         const r1 = applyStockDelta(products, old.productId, -old.quantity)
-        if (!r1.ok) {
+        if ('error' in r1) {
           err = r1.error
           return d
         }
         products = r1.products
         const r2 = applyStockDelta(products, input.productId, input.quantity)
-        if (!r2.ok) {
+        if ('error' in r2) {
           err = r2.error
           return d
         }
@@ -915,7 +1050,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           old.productId,
           -old.quantity,
         )
-        if (!r.ok) {
+        if ('error' in r) {
           err = r.error
           return d
         }
@@ -981,8 +1116,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       remoteBootstrapError,
       cloudSync,
       cloudSyncError,
+      lastCloudSaveAt,
       retryRemoteBootstrap,
       dismissCloudSyncMessage,
+      retryCloudSyncNow,
+      downloadLocalBackup,
       readOnly,
       readOnlyButtonProps,
       addProduct,
@@ -1018,8 +1156,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       remoteBootstrapError,
       cloudSync,
       cloudSyncError,
+      lastCloudSaveAt,
       retryRemoteBootstrap,
       dismissCloudSyncMessage,
+      retryCloudSyncNow,
+      downloadLocalBackup,
       readOnly,
       readOnlyButtonProps,
       addProduct,

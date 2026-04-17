@@ -2,6 +2,7 @@ import { Download, Pencil, Plus, Printer, ShoppingCart, Trash2 } from 'lucide-re
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Modal } from '../components/Modal'
 import { ProductSelectWithSearch } from '../components/ProductSelectWithSearch'
+import { useAuth } from '../context/AuthContext'
 import { READ_ONLY_CONTROL_TITLE, useData } from '../context/DataContext'
 import { useUiFeedback } from '../context/UiFeedbackContext'
 import type { Sale, SaleLine } from '../types'
@@ -67,6 +68,9 @@ export function SalesPage() {
     readOnlyButtonProps,
   } = useData()
   const { showToast } = useUiFeedback()
+  const { hasPermission } = useAuth()
+  const canCreateOrders = hasPermission('create_orders')
+  const canEditOrders = hasPermission('edit_orders')
 
   const defaultProductId = products[0]?.id ?? ''
 
@@ -531,14 +535,16 @@ export function SalesPage() {
               Order total: {formatMoney(orderTotalPreview)}
             </p>
 
-            <button
-              type="submit"
-              {...readOnlyButtonProps}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-coral-500 py-2.5 text-sm font-semibold text-white hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500"
-            >
-              <Plus className="h-4 w-4" />
-              Save sale
-            </button>
+            {canCreateOrders && (
+              <button
+                type="submit"
+                {...readOnlyButtonProps}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-coral-500 py-2.5 text-sm font-semibold text-white hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-coral-500"
+              >
+                <Plus className="h-4 w-4" />
+                Save sale
+              </button>
+            )}
           </div>
           </fieldset>
         </form>
@@ -658,29 +664,33 @@ export function SalesPage() {
                   </div>
 
                   <div className="flex justify-end gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => openEdit(s)}
-                      title={readOnly ? 'View details (read-only)' : undefined}
-                      className="inline-flex items-center justify-center rounded-lg border border-transparent bg-[var(--app-bg)] p-2 text-[var(--app-muted)] hover:border-[var(--app-border)] hover:bg-gray-100 dark:hover:bg-white/10"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (
-                          confirm(
-                            'Delete this sale? Stock will be restored for all lines.',
+                    {canEditOrders && (
+                      <button
+                        type="button"
+                        onClick={() => openEdit(s)}
+                        title={readOnly ? 'View details (read-only)' : undefined}
+                        className="inline-flex items-center justify-center rounded-lg border border-transparent bg-[var(--app-bg)] p-2 text-[var(--app-muted)] hover:border-[var(--app-border)] hover:bg-gray-100 dark:hover:bg-white/10"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    )}
+                    {canEditOrders && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (
+                            confirm(
+                              'Delete this sale? Stock will be restored for all lines.',
+                            )
                           )
-                        )
-                          deleteSale(s.id)
-                      }}
-                      {...readOnlyButtonProps}
-                      className="inline-flex items-center justify-center rounded-lg border border-transparent bg-red-50 p-2 text-red-600 hover:border-red-200 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-red-950/20 dark:hover:bg-red-950/40"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                            deleteSale(s.id)
+                        }}
+                        {...readOnlyButtonProps}
+                        className="inline-flex items-center justify-center rounded-lg border border-transparent bg-red-50 p-2 text-red-600 hover:border-red-200 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-red-950/20 dark:hover:bg-red-950/40"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               )
@@ -742,33 +752,37 @@ export function SalesPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex flex-wrap items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => openEdit(s)}
-                            title={readOnly ? 'View details (read-only)' : undefined}
-                            className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2 py-1.5 text-xs font-medium text-[var(--app-muted)] hover:border-[var(--app-border)] hover:bg-gray-100 dark:hover:bg-white/10"
-                          >
-                            <Pencil className="h-4 w-4" />
-                            <span className="hidden sm:inline">
-                              {readOnly ? 'View' : 'Edit'}
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (
-                                confirm(
-                                  'Delete this sale? Stock will be restored for all lines.',
+                          {canEditOrders && (
+                            <button
+                              type="button"
+                              onClick={() => openEdit(s)}
+                              title={readOnly ? 'View details (read-only)' : undefined}
+                              className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2 py-1.5 text-xs font-medium text-[var(--app-muted)] hover:border-[var(--app-border)] hover:bg-gray-100 dark:hover:bg-white/10"
+                            >
+                              <Pencil className="h-4 w-4" />
+                              <span className="hidden sm:inline">
+                                {readOnly ? 'View' : 'Edit'}
+                              </span>
+                            </button>
+                          )}
+                          {canEditOrders && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (
+                                  confirm(
+                                    'Delete this sale? Stock will be restored for all lines.',
+                                  )
                                 )
-                              )
-                                deleteSale(s.id)
-                            }}
-                            {...readOnlyButtonProps}
-                            className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2 py-1.5 text-xs font-medium text-red-600 hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:border-red-900 dark:hover:bg-red-950/30"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="hidden sm:inline">Delete</span>
-                          </button>
+                                  deleteSale(s.id)
+                              }}
+                              {...readOnlyButtonProps}
+                              className="inline-flex items-center gap-1 rounded-lg border border-transparent px-2 py-1.5 text-xs font-medium text-red-600 hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:border-red-900 dark:hover:bg-red-950/30"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="hidden sm:inline">Delete</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

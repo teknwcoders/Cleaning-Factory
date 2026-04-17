@@ -67,6 +67,7 @@ export function effectiveSessionRole(user: User): UserRole {
   const ar = app?.role
 
   if (ar === 'manager') return 'manager'
+  if (ar === 'sales') return 'sales'
   if (ar === 'viewer' || ar === 'admin') return 'viewer'
 
   const email = (user.email ?? '').trim().toLowerCase()
