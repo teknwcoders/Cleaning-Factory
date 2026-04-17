@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   AppNotification,
   Customer,
+  Order,
+  OrderItem,
   Product,
   ProductionEntry,
   Purchase,
@@ -16,6 +18,19 @@ export type AppData = {
   purchases: Purchase[]
   production: ProductionEntry[]
   notifications: AppNotification[]
+  orders: Order[]
+}
+
+export function emptyAppData(): AppData {
+  return {
+    products: [],
+    customers: [],
+    sales: [],
+    purchases: [],
+    production: [],
+    notifications: [],
+    orders: [],
+  }
 }
 
 export function hasAnyAppData(data: AppData): boolean {
@@ -25,7 +40,8 @@ export function hasAnyAppData(data: AppData): boolean {
     data.sales.length > 0 ||
     data.purchases.length > 0 ||
     data.production.length > 0 ||
-    data.notifications.length > 0
+    data.notifications.length > 0 ||
+    data.orders.length > 0
   )
 }
 
@@ -68,6 +84,18 @@ export async function fetchFullState(sb: SupabaseClient): Promise<AppData> {
     .select('id,product_id,quantity,production_date,notes')
     .order('production_date', { ascending: false })
   if (prde) throw new Error(prde.message)
+
+  const { data: orderRows, error: ore } = await sb
+    .from('customer_orders')
+    .select('id,customer_name,phone,location,order_date')
+    .order('order_date', { ascending: false })
+  if (ore) throw new Error(ore.message)
+
+  const { data: orderLineRows, error: ole } = await sb
+    .from('customer_order_lines')
+    .select('order_id,sort_idx,product_name,quantity,unit_price')
+    .order('sort_idx')
+  if (ole) throw new Error(ole.message)
 
   let notifications: AppNotification[] = []
   const { data: noteRows, error: ne } = await sb
@@ -134,6 +162,34 @@ export async function fetchFullState(sb: SupabaseClient): Promise<AppData> {
     notes: String(r.notes ?? ''),
   }))
 
+  const linesByOrderId = new Map<string, OrderItem[]>()
+  const sortedLines = [...(orderLineRows ?? [])].sort(
+    (a, b) => num(a.sort_idx) - num(b.sort_idx),
+  )
+  for (const r of sortedLines) {
+    const oid = String(r.order_id)
+    const up = r.unit_price
+    const priceRaw = up == null || up === '' ? undefined : num(up)
+    const price =
+      priceRaw !== undefined && Number.isFinite(priceRaw) ? priceRaw : undefined
+    const item: OrderItem = {
+      name: String(r.product_name ?? ''),
+      quantity: Math.round(num(r.quantity)),
+      ...(price !== undefined ? { price } : {}),
+    }
+    if (!linesByOrderId.has(oid)) linesByOrderId.set(oid, [])
+    linesByOrderId.get(oid)!.push(item)
+  }
+
+  const orders: Order[] = (orderRows ?? []).map((r) => ({
+    id: String(r.id),
+    customerName: String(r.customer_name ?? ''),
+    phone: String(r.phone ?? ''),
+    location: String(r.location ?? ''),
+    date: String(r.order_date),
+    items: linesByOrderId.get(String(r.id)) ?? [],
+  }))
+
   return {
     products,
     customers,
@@ -141,6 +197,7 @@ export async function fetchFullState(sb: SupabaseClient): Promise<AppData> {
     purchases,
     production,
     notifications,
+    orders,
   }
 }
 
@@ -250,6 +307,45 @@ export async function syncAppDataToTables(
       { onConflict: 'id' },
     )
     if (error) return { error: `production: ${error.message}` }
+  }
+
+  {
+    const r = await deleteMissingById(
+      sb,
+      'customer_orders',
+      data.orders.map((x) => x.id),
+    )
+    if (r.error) return { error: r.error }
+  }
+  for (const o of data.orders) {
+    const { error: oe } = await sb.from('customer_orders').upsert(
+      {
+        id: o.id,
+        customer_name: o.customerName,
+        phone: o.phone,
+        location: o.location,
+        order_date: o.date,
+      },
+      { onConflict: 'id' },
+    )
+    if (oe) return { error: `customer_orders: ${oe.message}` }
+    const { error: clr } = await sb
+      .from('customer_order_lines')
+      .delete()
+      .eq('order_id', o.id)
+    if (clr) return { error: `customer_order_lines clear: ${clr.message}` }
+    if (o.items.length) {
+      const { error: ins } = await sb.from('customer_order_lines').insert(
+        o.items.map((item, idx) => ({
+          order_id: o.id,
+          sort_idx: idx,
+          product_name: item.name,
+          quantity: item.quantity,
+          unit_price: item.price ?? null,
+        })),
+      )
+      if (ins) return { error: `customer_order_lines: ${ins.message}` }
+    }
   }
 
   {

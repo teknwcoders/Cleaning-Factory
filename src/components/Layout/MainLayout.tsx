@@ -9,9 +9,11 @@ const titles: Record<string, string> = {
   '/products': 'Products',
   '/production': 'Production',
   '/sales': 'Sales',
+  '/orders': 'Orders',
   '/purchases': 'Purchases',
   '/reports': 'Reports',
   '/customers': 'Customers',
+  '/users': 'Users',
   '/settings': 'Settings',
 }
 

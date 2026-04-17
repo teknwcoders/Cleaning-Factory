@@ -1,4 +1,5 @@
-import { AlertCircle, CloudOff, Loader2, RefreshCw } from 'lucide-react'
+import { AlertCircle, CloudOff, Loader2, RefreshCw, WifiOff } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useData } from '../../context/DataContext'
 
 export function ConnectivityBar() {
@@ -7,6 +8,37 @@ export function ConnectivityBar() {
     remoteBootstrapError,
     retryRemoteBootstrap,
   } = useData()
+  const [online, setOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
+  )
+
+  useEffect(() => {
+    const on = () => setOnline(true)
+    const off = () => setOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => {
+      window.removeEventListener('online', on)
+      window.removeEventListener('offline', off)
+    }
+  }, [])
+
+  if (!online) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex flex-wrap items-center justify-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/35 dark:text-amber-100"
+      >
+        <WifiOff className="h-4 w-4 shrink-0" aria-hidden />
+        <span className="max-w-3xl text-center">
+          <strong>You’re offline.</strong> Cached screens may still open.{' '}
+          <strong>Sign in, invites, and cloud sync</strong> need the internet — reconnect to use
+          Supabase auth and save data to the server.
+        </span>
+      </div>
+    )
+  }
 
   if (remoteBootstrap === 'loading') {
     return (

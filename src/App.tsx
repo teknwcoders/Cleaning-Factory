@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { DataProvider } from './context/DataContext'
+import { PwaInstallProvider } from './context/PwaInstallContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { UiFeedbackProvider } from './context/UiFeedbackContext'
 import { MainLayout } from './components/Layout/MainLayout'
@@ -53,108 +54,110 @@ function AuthedCatchAll() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <UiFeedbackProvider>
-          <DataProvider>
-            <BrowserRouter>
-              <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/confirmed" element={<EmailConfirmedPage />} />
-                <Route path="/set-password" element={<SetPasswordPage />} />
-                <Route
-                  element={
-                    <ProtectedRoute>
-                      <MainLayout />
-                    </ProtectedRoute>
-                  }
-                >
+      <PwaInstallProvider>
+        <AuthProvider>
+          <UiFeedbackProvider>
+            <DataProvider>
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/confirmed" element={<EmailConfirmedPage />} />
+                  <Route path="/set-password" element={<SetPasswordPage />} />
                   <Route
-                    path="/"
                     element={
-                      <RequireModule module="dashboard">
-                        <DashboardPage />
-                      </RequireModule>
+                      <ProtectedRoute>
+                        <MainLayout />
+                      </ProtectedRoute>
                     }
-                  />
-                  <Route
-                    path="/products"
-                    element={
-                      <RequireModule module="products">
-                        <ProductsPage />
-                      </RequireModule>
-                    }
-                  />
-                  <Route
-                    path="/production"
-                    element={
-                      <RequireModule module="production">
-                        <ProductionPage />
-                      </RequireModule>
-                    }
-                  />
-                  <Route
-                    path="/sales"
-                    element={
-                      <RequireModule module="sales">
-                        <SalesPage />
-                      </RequireModule>
-                    }
-                  />
-                  <Route
-                    path="/orders"
-                    element={
-                      <RequireModule module="orders">
-                        <OrdersPage />
-                      </RequireModule>
-                    }
-                  />
-                  <Route
-                    path="/purchases"
-                    element={
-                      <RequireModule module="purchases">
-                        <PurchasesPage />
-                      </RequireModule>
-                    }
-                  />
-                  <Route
-                    path="/reports"
-                    element={
-                      <RequireModule module="reports">
-                        <ReportsPage />
-                      </RequireModule>
-                    }
-                  />
-                  <Route
-                    path="/customers"
-                    element={
-                      <RequireModule module="customers">
-                        <CustomersPage />
-                      </RequireModule>
-                    }
-                  />
-                  <Route
-                    path="/users"
-                    element={
-                      <ManagerOnly>
-                        <UserManagementPage />
-                      </ManagerOnly>
-                    }
-                  />
-                  <Route
-                    path="/settings"
-                    element={
-                      <RequireModule module="settings">
-                        <SettingsPage />
-                      </RequireModule>
-                    }
-                  />
-                </Route>
-                <Route path="*" element={<AuthedCatchAll />} />
-              </Routes>
-            </BrowserRouter>
-          </DataProvider>
-        </UiFeedbackProvider>
-      </AuthProvider>
+                  >
+                    <Route
+                      path="/"
+                      element={
+                        <RequireModule module="dashboard">
+                          <DashboardPage />
+                        </RequireModule>
+                      }
+                    />
+                    <Route
+                      path="/products"
+                      element={
+                        <RequireModule module="products">
+                          <ProductsPage />
+                        </RequireModule>
+                      }
+                    />
+                    <Route
+                      path="/production"
+                      element={
+                        <RequireModule module="production">
+                          <ProductionPage />
+                        </RequireModule>
+                      }
+                    />
+                    <Route
+                      path="/sales"
+                      element={
+                        <RequireModule module="sales">
+                          <SalesPage />
+                        </RequireModule>
+                      }
+                    />
+                    <Route
+                      path="/orders"
+                      element={
+                        <RequireModule module="orders">
+                          <OrdersPage />
+                        </RequireModule>
+                      }
+                    />
+                    <Route
+                      path="/purchases"
+                      element={
+                        <RequireModule module="purchases">
+                          <PurchasesPage />
+                        </RequireModule>
+                      }
+                    />
+                    <Route
+                      path="/reports"
+                      element={
+                        <RequireModule module="reports">
+                          <ReportsPage />
+                        </RequireModule>
+                      }
+                    />
+                    <Route
+                      path="/customers"
+                      element={
+                        <RequireModule module="customers">
+                          <CustomersPage />
+                        </RequireModule>
+                      }
+                    />
+                    <Route
+                      path="/users"
+                      element={
+                        <ManagerOnly>
+                          <UserManagementPage />
+                        </ManagerOnly>
+                      }
+                    />
+                    <Route
+                      path="/settings"
+                      element={
+                        <RequireModule module="settings">
+                          <SettingsPage />
+                        </RequireModule>
+                      }
+                    />
+                  </Route>
+                  <Route path="*" element={<AuthedCatchAll />} />
+                </Routes>
+              </BrowserRouter>
+            </DataProvider>
+          </UiFeedbackProvider>
+        </AuthProvider>
+      </PwaInstallProvider>
     </ThemeProvider>
   )
 }

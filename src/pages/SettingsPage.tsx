@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Download, Loader2, Moon, Monitor, RefreshCw, Shield, Sun } from 'lucide-react'
+import { Download, Loader2, Moon, Monitor, RefreshCw, Shield, Smartphone, Sun } from 'lucide-react'
 import type { ThemeMode } from '../context/ThemeContext'
 import { useTheme } from '../context/ThemeContext'
 import {
@@ -382,6 +382,29 @@ export function SettingsPage() {
           <li>Low-stock threshold is fixed in code for this demo.</li>
           <li>Notifications fire on low or zero stock after sales.</li>
         </ul>
+      </section>
+
+      <section className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface)] p-6 shadow-sm">
+        <div className="mb-2 flex items-start gap-3">
+          <div className="rounded-xl bg-coral-100 p-2 text-coral-600 dark:bg-coral-950/50 dark:text-coral-300">
+            <Smartphone className="h-5 w-5" aria-hidden />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-[var(--app-text)]">App install (PWA)</h2>
+            <p className="mt-1 text-sm text-[var(--app-muted)]">
+              Use <strong className="text-[var(--app-text)]">Install app</strong> in the top bar (Chrome,
+              Edge, Android) after the site is served over{' '}
+              <strong className="text-[var(--app-text)]">HTTPS</strong>. iOS: Share → Add to Home Screen.
+              The manifest provides the name, icons, standalone display, and theme colors for the splash
+              / system UI.
+            </p>
+            <p className="mt-3 text-sm text-[var(--app-muted)]">
+              <strong className="text-[var(--app-text)]">Offline:</strong> cached pages may load without
+              the network; <strong className="text-[var(--app-text)]">Supabase sign-in, invites, and cloud
+              sync</strong> require connectivity. If you are offline, a banner appears at the top.
+            </p>
+          </div>
+        </div>
       </section>
 
       {isManager && (

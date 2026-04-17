@@ -25,6 +25,7 @@ import { useAuth } from './AuthContext'
 import { useUiFeedback } from './UiFeedbackContext'
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase'
 import {
+  emptyAppData,
   fetchFullState,
   hasAnyAppData,
   syncAppDataToTables,
@@ -237,17 +238,6 @@ function migrateOrders(raw: unknown): Order[] {
   })
 }
 
-function emptyAppData(): AppData {
-  return {
-    products: [],
-    customers: [],
-    sales: [],
-    purchases: [],
-    production: [],
-    notifications: [],
-  }
-}
-
 function migrateCustomers(raw: unknown): Customer[] {
   if (!Array.isArray(raw)) return []
   return raw.map((item: unknown) => {
@@ -272,6 +262,7 @@ function hydrateAppData(p: Record<string, unknown>): AppData | null {
     purchases: (p.purchases ?? []) as Purchase[],
     production: (p.production ?? []) as ProductionEntry[],
     notifications: (p.notifications ?? []) as AppNotification[],
+    orders: migrateOrders(p.orders),
   }
 }
 
@@ -293,7 +284,6 @@ export type RemoteBootstrapState = 'skipped' | 'loading' | 'ready' | 'error'
 export type CloudSyncState = 'idle' | 'syncing' | 'saved' | 'error'
 
 type DataContextValue = AppData & {
-  orders: Order[]
   /** First load from Supabase (or skipped if env not set). */
   remoteBootstrap: RemoteBootstrapState
   remoteBootstrapError: string | null
@@ -387,16 +377,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   )
 
   const [data, setData] = useState<AppData>(load)
-  const [orders, setOrders] = useState<Order[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (!raw) return []
-      const parsed = JSON.parse(raw) as Record<string, unknown>
-      return migrateOrders(parsed.orders)
-    } catch {
-      return []
-    }
-  })
   const remoteHydratedRef = useRef(!getSupabase())
   const [remoteBootstrap, setRemoteBootstrap] = useState<RemoteBootstrapState>(
     () => (isSupabaseConfigured() ? 'loading' : 'skipped'),
@@ -468,8 +448,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const downloadLocalBackup = useCallback(() => {
     const payload = {
       exportedAt: new Date().toISOString(),
-      data,
-      orders,
+      ...data,
     }
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: 'application/json;charset=utf-8',
@@ -481,7 +460,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     a.download = `cleaning-backup-${stamp}.json`
     a.click()
     URL.revokeObjectURL(url)
-  }, [data, orders])
+  }, [data])
 
   useEffect(() => {
     const sb = getSupabase()
@@ -497,7 +476,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       try {
         const remote = await fetchFullState(sb)
         if (cancelled) return
-        if (hasAnyAppData(remote) || (!hasAnyAppData(data) && orders.length === 0)) {
+        if (
+          hasAnyAppData(remote) ||
+          (!hasAnyAppData(data) && data.orders.length === 0)
+        ) {
           setData(remote)
           setRemoteBootstrapError(null)
         } else {
@@ -522,7 +504,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, orders }))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
     } catch {
       /* ignore */
     }
@@ -558,7 +540,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       })()
     }, 650)
     return () => window.clearTimeout(t)
-  }, [data, markCloudSavedNow, orders, readOnly])
+  }, [data, markCloudSavedNow, readOnly])
 
   const pushNotification = useCallback((message: string) => {
     if (!readOnlyGuard()) return
@@ -600,17 +582,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (!normalizedItems.length) {
         return { ok: false, error: 'Add at least one product with quantity.' }
       }
-      setOrders((prev) => [
-        {
-          id: id(),
-          customerName: cleanName,
-          phone: input.phone.trim(),
-          location: input.location.trim(),
-          date: new Date(input.date).toISOString(),
-          items: normalizedItems,
-        },
-        ...prev,
-      ])
+      setData((d) => ({
+        ...d,
+        orders: [
+          {
+            id: id(),
+            customerName: cleanName,
+            phone: input.phone.trim(),
+            location: input.location.trim(),
+            date: new Date(input.date).toISOString(),
+            items: normalizedItems,
+          },
+          ...d.orders,
+        ],
+      }))
       return { ok: true }
     },
     [authRole, hasPermission, permissionGuard, readOnlyGuard],
@@ -644,8 +629,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return { ok: false, error: 'Add at least one product with quantity.' }
       }
       let found = false
-      setOrders((prev) =>
-        prev.map((order) => {
+      setData((d) => ({
+        ...d,
+        orders: d.orders.map((order) => {
           if (order.id !== orderId) return order
           found = true
           return {
@@ -657,7 +643,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             items: normalizedItems,
           }
         }),
-      )
+      }))
       if (!found) return { ok: false, error: 'Order not found.' }
       return { ok: true }
     },
@@ -669,7 +655,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (!readOnlyGuard()) return
       if (authRole === 'sales' && !permissionGuard(hasPermission('edit_orders')))
         return
-      setOrders((prev) => prev.filter((order) => order.id !== orderId))
+      setData((d) => ({
+        ...d,
+        orders: d.orders.filter((order) => order.id !== orderId),
+      }))
     },
     [authRole, hasPermission, permissionGuard, readOnlyGuard],
   )
@@ -1111,7 +1100,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const value = useMemo<DataContextValue>(
     () => ({
       ...data,
-      orders,
       remoteBootstrap,
       remoteBootstrapError,
       cloudSync,
@@ -1151,7 +1139,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }),
     [
       data,
-      orders,
       remoteBootstrap,
       remoteBootstrapError,
       cloudSync,

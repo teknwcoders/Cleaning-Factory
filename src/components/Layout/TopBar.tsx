@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useData } from '../../context/DataContext'
+import { PwaInstallButton } from '../PwaInstallButton'
 import { formatDate } from '../../utils/format'
 import { MobileMenuButton } from './Sidebar'
 
@@ -69,6 +70,7 @@ export function TopBar({ title, onOpenSidebar }: Props) {
       </div>
 
       <div className="flex flex-1 flex-wrap items-center justify-end gap-2 sm:max-w-xl sm:flex-nowrap">
+        <PwaInstallButton className="order-first sm:order-none" />
         {remoteBootstrap === 'ready' && cloudSync !== 'idle' && (
           <div
             role="status"

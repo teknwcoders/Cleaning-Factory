@@ -8,6 +8,8 @@ security definer
 set search_path = public
 as $$
 begin
+  delete from public.customer_order_lines where true;
+  delete from public.customer_orders where true;
   delete from public.sale_lines where true;
   delete from public.sales where true;
   delete from public.purchases where true;
